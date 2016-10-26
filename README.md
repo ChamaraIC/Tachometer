@@ -14,17 +14,19 @@ Learn more...
 
 1. [Tachometer Components](README.md#tachometer-components)
 2. [Tachometer Data Roles](README.md#tachometer-data-roles)
-3. [Tachometer Capability Options](README.md#tachometer-capability-pptions)
+3. [Tachometer Capability Options](README.md#tachometer-capability-options)
 
 ##Tachometer Components
 
 Following are the constituent components of the Tachometer Visual. These are referred in Capability Options and in rest of the documentation.
-![](images/TachometerComponents.png)
+
+<img src="images/TachometerComponents.png" alt="Drawing" width="600px">
 
 ##Tachometer Data Roles
 
 Following diagram show Tachometer Data Roles.
-![](images/TachometerDataRoles.png)
+
+<img src="images/TachometerDataRoles.png" alt="Drawing" width="300px">
 
 |Data Role|Description|Constraints|
 |---|---|---|
@@ -39,6 +41,7 @@ Following diagram show Tachometer Data Roles.
 
 Tachometer Visual provides nine Capability Option groups highlighted in the figure below. These include “Gauge Axis”, “Range 1”, “Range 2”, “Range 3”, “Target”, “Indicator”, “Axis Labels”, “Callout Value” and “Callout Percent”. These Capability Option Groups corresponds to the corresponding components indicated in [Tachometer Components](README.md#tachometer-components). For example, using “Range 2” Capability Option Group you can customize the color, thickness and other attributes of the component “Range 2”. 
 Following diagram show Tachometer Capability Options.
-![](images/TachometerCapabilityOptions.png)
 
-Learn more about Tachometer Capability Options [here](README.md#Tachometer-Capability-Options).
+<img src="images/TachometerCapabilityOptions.png" alt="Drawing" width="300px">
+
+Learn more about Tachometer Capability Options [here](README.md#tachometer-capability-options).
