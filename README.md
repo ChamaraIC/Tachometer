@@ -27,7 +27,7 @@ Following diagram show Tachometer Data Roles.
 
 |Data Role|Description|Constraints|
 |---|---|---|
-|Value| test description |Tast Value|
+|Value| This is the value that Tachometer would indicate against the backdrop of other limits and targets defined by remaining Data Roles |Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.|
 
 ##Tachometer Capability Options
 
