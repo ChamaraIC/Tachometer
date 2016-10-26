@@ -1,3 +1,4 @@
+
 # Tachometer
 ##Power BI Custom Visual Tachometer
 
@@ -28,6 +29,11 @@ Following diagram show Tachometer Data Roles.
 |Data Role|Description|Constraints|
 |---|---|---|
 |Value| This is the value that Tachometer would indicate against the backdrop of other limits and targets defined by remaining Data Roles |Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.|
+|Start Value|The Start Value for the Tachometer Arc.|This can either be the minimum value or maximum value in the value range for the Tachometer. All values defined by other Data Roles should lie between Start Value and End Value.|
+|End Value|The End Value for the Tachometer Arc|If “Start Value” is the minimum value in the value range, then “End Value” should be the maximum value in the value range or vice versa. All values defined by other Data Roles should lie between Start Value and End Value.|
+|Target Value|The Target value that will be displayed by the target line.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.|
+|Range 2 Start Value|This is the starting value for “Range 2”. This is also the End value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.In addition, this value should be between “Start Value” and “Range 3 Start Value” when “Range 3 Start Value” is available.|
+|Range 3 Start Value|This is the starting value for “Range 3”. This is also the End value for Range 2 when “Range 2 Start Value” is defined. When “Range 2 Start Value” is not provided, this will also be the End Value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge. In addition, this value should be between “Range 2 Start Value” and “End Value” when “Range 2 Start Value” is available.|
 
 ##Tachometer Capability Options
 
