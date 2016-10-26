@@ -24,20 +24,14 @@ Following are the constituent components of the Tachometer Visual. These are ref
 
 Following diagram show Tachometer Data Roles.
 ![](images/TachometerDataRoles.png)
+
 |Data Role|Description|Constraints|
 |---|---|---|
-|Value|This is the value that Tachometer would indicate against the backdrop of other limits and targets defined by remaining Data Roles|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.|
-|Start Value|The Start Value for the Tachometer Arc.|This can either be the minimum value or maximum value in the value range for the Tachometer. All values defined by other Data Roles should lie between Start Value and End Value.|
-|End Value|The End Value for the Tachometer Arc|If “Start Value” is the minimum value in the value range, then “End Value” should be the maximum value in the value range or vice versa. All values defined by other Data Roles should lie between Start Value and End Value.|
-|Target Value|The Target value that will be displayed by the target line.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.|
-|Range 2 Start Value|This is the starting value for “Range 2”. This is also the End value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.
-In addition, this value should be between “Start Value” and “Range 3 Start Value” when “Range 3 Start Value” is available.|
-|Range 3 Start Value|This is the starting value for “Range 3”. This is also the End value for Range 2 when “Range 2 Start Value” is defined. When “Range 2 Start Value” is not provided, this will also be the End Value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.
-In addition, this value should be between “Range 2 Start Value” and “End Value” when “Range 2 Start Value” is available.|
+|Value| test description |Tast Value|
 
 ##Tachometer Capability Options
 
-Tachometer Visual provides nine Capability Option groups highlighted in the figure below. These include “Gauge Axis”, “Range 1”, “Range 2”, “Range 3”, “Target”, “Indicator”, “Axis Labels”, “Callout Value” and “Callout Percent”. These Capability Option Groups corresponds to the corresponding components indicated in [Tachometer Components](README.md#tachometer-components). For example, using “Range 2” Capability Option Group you can customize the color, thickness and other attributes of the component “Range 2”. 
+Tachometer Visual provides nine Capability Option groups highlighted in the figure below. These include â€œGauge Axisâ€, â€œRange 1â€, â€œRange 2â€, â€œRange 3â€, â€œTargetâ€, â€œIndicatorâ€, â€œAxis Labelsâ€, â€œCallout Valueâ€ and â€œCallout Percentâ€. These Capability Option Groups corresponds to the corresponding components indicated in [Tachometer Components](README.md#tachometer-components). For example, using â€œRange 2â€ Capability Option Group you can customize the color, thickness and other attributes of the component â€œRange 2â€. 
 Following diagram show Tachometer Capability Options.
 ![](images/TachometerCapabilityOptions.png)
 
