@@ -4,14 +4,14 @@
 ## AxisLabels
 
 ## Axis Labels - Default Settings
-Axis Labels are the labels that are placed along the gauge arc indicating value at intervals determined by Capability settings. Figure 1 and Figure 2 shows Axis Labels Settings and a Sample screenshot of Tachometer with default Axis Labels when Gauge Axis Scale is set to Linear Scale (please refer [Gauge Axis](GaugeAxis.md) examples for more Axis Scale). 
+Axis Labels are the labels that are placed along the gauge arc indicating values at intervals that are determined by Capability settings. Figure 1 and Figure 2 shows Axis Labels Settings and a Sample screenshot of Tachometer with default Axis Labels when Gauge Axis Scale is set to Linear Scale (please refer [Gauge Axis](GaugeAxis.md) examples for more Axis Scale). 
 
 | Figure 1. “Axis Labels” Default Option Settings when Linear scale is used. | Figure 2. Tachometer with default settings for Axis Labels when Linear Scale is used. |
 |---|---|
 | <img src="images/AxisLabelsDefaults.png" alt="Drawing" width="200px">  | <img src="images/AxisLabelsDefaultsSample.png" alt="Drawing" width="300px"> |
 
 ## Axis Labels - Default Settings – For Log Scale
-Axis Labels are the labels that are placed along the gauge arc indicating value at intervals determined by Capability settings. Figure 3 and Figure 4 show Axis Labels Settings and a Sample screenshot of Tachometer with default Axis Labels when Gauge Axis Scale is set to Log Scale (please refer [Gauge Axis](GaugeAxis.md) examples for more Axis Scale). 
+Figure 3 and Figure 4 show Axis Labels Settings and a Sample screenshot of Tachometer with default Axis Labels when Gauge Axis Scale is set to Log Scale (please refer [Gauge Axis](GaugeAxis.md) examples for more Axis Scale). 
 
 Notice that when Log Scale is used, you do not get the “Count” option by default. Instead, you get the “Reduce” Option. Please refer rest of this section on Axis Labels for more details on these.
 

@@ -4,7 +4,7 @@
 ## Indicator
 
 ## Indicator - Default Settings
-In Tachometer, Indicatorincludes the Needle and its base. Figure 1 below shows “Indicator” Capability Options. All the values below are set to their defaults. 
+In Tachometer, Indicator includes the Needle and its Base. Figure 1 below shows “Indicator” Capability Options. All the values below are set to their defaults. 
 
 | Figure 1. “Indicator” Default Option Settings. | Figure 2. Tachometer with default settings for Indicator|
 |---|---|
@@ -46,6 +46,3 @@ Thickness of the Indicator Base can be configured using “Base Thickness” opt
 | Figure 9. Base Thickness” of Indicator set 10% | Figure 10. Tachometer with a 10% Thickness for Indicator Base |
 |---|---|
 | <img src="images/IndicatorBaseThickness.png" alt="Drawing" width="200px">  | <img src="images/IndicatorBaseThicknessSample.png" alt="Drawing" width="300px"> |
-
-## Indicator - Text Color and Text Size
-“Display Units” help in displaying Values as Thousands, Millions etc. Indicator Capability Options in Tachometer does not provide an option to configure “Display Units”. However, any display units you set for “Axis Labels” Capability Options will be applied for Indicator as well. Please see “Axis Labels” examples for more on this.

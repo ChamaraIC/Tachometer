@@ -4,7 +4,7 @@
 ## Target
 
 ## Target - Default Settings
-Figure 1 below shows “Target” Capability Options. All the values below are set to their defaults. In addition, we have left the Data Role “Target Value” unassigned in getting Figure 4.5.2 to show how Tachometer looks like when Target Value is not set. You can get the same effect by switching off the On/Off switch for Target Options (which is on the right of the label “Target” in Figure 1.)
+Figure 1 below shows “Target” Capability Options. All the values below are set to their defaults. In addition, we have left the Data Role “Target Value” unassigned in getting Figure 2 to show how Tachometer looks like when Target Value is not set. You can get the same effect by switching off the On/Off switch for Target Options (which is on the right of the label “Target” in Figure 1.)
 
 | Figure 1. “Target” Default Option Settings. | Figure 2. Tachometer with default settings for Target and “Target Value” Data Role not set (target not rendered). |
 |---|---|
@@ -34,9 +34,9 @@ A value for Target can be defined using “Target Value” in Data Roles. If “
 | <img src="images/TargetLineColor.png" alt="Drawing" width="200px">  | <img src="images/TargetLineColorSample.png" alt="Drawing" width="300px"> |
 
 ## Target - Length
-“Length” Option of Target Capability Settings helps you define the length of the Target Line. The Length is measured as a percentage value of the Dial Radius. Dial Radius is calculated when Tachometer is rendered and is based on the Start Angle, and End Angle options in “Gage Axis” capability settings along with Height and Width properties of the view port assigned to the visual on your report or dashboard.
+“Length” Option of Target Capability Settings helps you define the length of the Target Line. The Length is measured as a percentage of the Dial Radius. Dial Radius is calculated when Tachometer is rendered and is based on the Start Angle, and End Angle options in “Gage Axis” capability settings along with Height and Width properties of the view port assigned to the visual on your report or dashboard.
 
-The default value for Length as you can see in Figure 5 is 50% or Radius. However, when default value is used for Length, the actual value will be the smallest of Range 1 or Range 2 or Range 3 Thickness. For example, if Range 1 is set to 40%, Range 2 to 50% and Range 3 to 30%, then target Length will take 30% if you leave Target Length in its default.
+The default value for Length as you can see in Figure 5 is 50% of Radius. However, when default value is used for Length, the actual value will be the smallest of Range 1 and Range 2 and Range 3 Thickness. For example, if Range 1 is set to 40%, Range 2 to 50% and Range 3 to 30%, then target Length will take 30% if you leave Target Length in its default.
 
 | Figure 7. “Length” of Target set to 30%. | Figure 8. Tachometer with Target length of 30%. |
 |---|---|
@@ -47,9 +47,7 @@ Text Color and Text Size of Target Capabilities can be used to set the Color and
 
 | Figure 9. “Text Color” of Target set to a green shade and “Text Size” set to 20pt | Figure 10. Tachometer with Text Color and Text Size options set as a green shade and 20pt |
 |---|---|
-| <img src="images/TargetTextColor.png" alt="Drawing" width="200px">  | <img src="images/TargetTextColorSample.png" alt="Drawing" width="300px"> |
+| <img src="images/TargetText.png" alt="Drawing" width="200px">  | <img src="images/TargetTextSample.png" alt="Drawing" width="300px"> |
 
-## Target - Text Color and Text Size
-“Display Units” help in displaying Values as Thousands, Millions etc. Target Capability Options in Tachometer does not provide an option to configure “Display Units”. However, any display units you set for “Axis Labels” Capability Options will be applied for Target as well. Please see “Axis Labels” examples for more on this.
 
 
