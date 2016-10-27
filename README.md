@@ -44,4 +44,4 @@ Following diagram show Tachometer Capability Options.
 
 <img src="images/TachometerCapabilityOptions.png" alt="Drawing" width="300px">
 
-Learn more about Tachometer Capability Options [here](README.md#tachometer-capability-options).
+Learn more about Tachometer Capability Options [here](Capabilities/README.md).
