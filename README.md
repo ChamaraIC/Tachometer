@@ -1,4 +1,4 @@
-
+﻿
 # Tachometer
 ##Power BI Custom Visual Tachometer
 
@@ -6,6 +6,7 @@ Tachometer is a flexible gauge that allows you to quickly convey detailed inform
 This is an ideal visual for communicating measures against low,  acceptable, and high components such as team performance against targets, error rates, test coverage, and customer satisfaction.
  
 See for yourself [Tachometer Sample Video](https://www.youtube.com/watch?v=C3OXdETbS9o)
+[![Tachometer Sample Video](images/YouTube.png)](https://www.youtube.com/watch?v=C3OXdETbS9o "Tachometer Sample Video")
 
 Here are some samples of the Tachometer with different settings, 
 ![](images/ScreenshotBase.png)
