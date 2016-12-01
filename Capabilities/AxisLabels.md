@@ -6,6 +6,8 @@
 ## Axis Labels - Default Settings
 Axis Labels are the labels that are placed along the gauge arc indicating values at intervals that are determined by Capability settings. Figure 1 and Figure 2 shows Axis Labels Settings and a Sample screenshot of Tachometer with default Axis Labels when Gauge Axis Scale is set to Linear Scale (please refer [Gauge Axis](GaugeAxis.md) examples for more Axis Scale). 
 
+Note. If Callout Value or Callout Percent labels overlap any Axis Label (can happen when a user define offsets for Callouts), then those labels will not be rendered to allow Callout to be clearly visible.
+
 | Figure 1. “Axis Labels” Default Option Settings when Linear scale is used. | Figure 2. Tachometer with default settings for Axis Labels when Linear Scale is used. |
 |---|---|
 | <img src="images/AxisLabelsDefaults.png" alt="Drawing" width="200px">  | <img src="images/AxisLabelsDefaultsSample.png" alt="Drawing" width="300px"> |
