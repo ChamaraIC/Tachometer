@@ -3,7 +3,7 @@
 *
 *  Copyright (c) Microsoft Corporation
 *  All rights reserved. 
- *  MIT License
+*  MIT License
 *
 *  Permission is hereby granted, free of charge, to any person obtaining a copy
 *  of this software and associated documentation files (the ""Software""), to deal
@@ -12,14 +12,14 @@
 *  copies of the Software, and to permit persons to whom the Software is
 *  furnished to do so, subject to the following conditions:
 *   
- *  The above copyright notice and this permission notice shall be included in 
- *  all copies or substantial portions of the Software.
+*  The above copyright notice and this permission notice shall be included in 
+*  all copies or substantial portions of the Software.
 *   
- *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+*  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+*  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+*  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+*  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+*  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 *  THE SOFTWARE.
 */
@@ -45,6 +45,20 @@ module powerbi.visuals {
         y: number;
     }
 
+    export interface TargetDetails {
+        centerX: number;
+        centerY: number;
+        tipX: number;
+        tipY: number;
+        defaultTextAnchorX: number;
+        defaultTextAnchorY: number;
+        gaugeRadius: number;
+        labelRadius: number;
+        onRightSide: boolean;
+        onTopHalf: boolean;
+        targetAngle: number;
+    }
+
     export interface TachometerDataLabelsData {
         show: boolean;
         fontSizePx?: string;
@@ -59,6 +73,9 @@ module powerbi.visuals {
         formatter?: IValueFormatter;
         textHeight?: number;
         invert?: boolean;
+        value?: string; //Data value of the label
+        formattedValue?: string; //formatted string value of the label
+        textWidth?: number; //width of formatted text
     }
 
     export interface TachometerViewModel extends TooltipEnabledDataPoint {
@@ -66,10 +83,8 @@ module powerbi.visuals {
         viewportWidth: number;
         availableHeight: number;
         availableWidth: number;
-        metadataColumn: DataViewMetadataColumn;
         axis: TachometerAxisData;
         callout: TachometerCalloutSettings;
-        margin?: IMargin;
     }
 
     export interface TachometerIndicatorData {
@@ -136,6 +151,14 @@ module powerbi.visuals {
         valueRange: number; //range between startValue and endValue
         angleRange: number; //angle between startAngle and endAngle
         radius: number;
+        axisLabelRadius: number;
+        directionClockwise: boolean;
+        startQuadrant: number;//Quadrant where start angle is
+        endQuadrant: number;//Quadrant where end angle is
+        cosStartAngle: number; //cos value of startAngle
+        cosEndAngle: number; //cos value of EndAngle
+        sinStartAngle: number; //sin value of startAngle
+        sinEndAngle: number; //sin value of EndAngle
     }
 
     interface TachometerStyle {
@@ -152,6 +175,9 @@ module powerbi.visuals {
         callout: {
             padding: number;
         };
+        target: {
+            padding: number;
+        };
     }
 
     export interface TachometerSmallViewPortProperties {
@@ -161,10 +187,25 @@ module powerbi.visuals {
         TachometerMarginsOnSmallViewPort: number;
     }
 
+    export interface TachometerRectangle {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    }
+
     export interface TachometerAxisLabel {
+        show: boolean;
         angle: number;
         value: number;
         displayValue: string;
+        anchor: string;
+        xOffset: number;
+        yOffset: number;
+        textWidth: number;
+        textHeight: number;
+        rect: TachometerRectangle; //redundat data for performance
+        graphicsElement: D3.Selection;//link to the graphics element
     }
 
     export interface TachometerConstructorOptions {
@@ -263,6 +304,9 @@ module powerbi.visuals {
         textColor: string;
         fontSize: number;
         fontSizePx?: string;
+        textHeight?: number;
+        formattedValue?: string; //formatted string value of the label
+        textWidth?: number; //width of formatted text
     }
 
     export interface TachometerRoleNames {
@@ -272,7 +316,18 @@ module powerbi.visuals {
         targetValue: string;
         range2StartValue: string;
         range3StartValue: string;
-    };
+    }
+
+    export interface Margins {
+        mainMargin: IMargin;
+        labelMargin: IMargin;
+        targetMargin: IMargin;
+    }
+
+    export interface PruningLimit {
+        width: number;
+        height: number;
+    }
 
     /** 
      * Renders a data value in a gauge. The gauge can start and end in any user defined angle/orientation.
@@ -286,15 +341,23 @@ module powerbi.visuals {
         private static UninitializedRatio = +Infinity;
         private static UnintializedStartAngle = -Math.PI * 2 / 3;
         private static UnintializedEndAngle = Math.PI * 2 / 3;
+        private static PiBy4 = Math.PI / 4;
+        private static ThreePiBy4 = Math.PI * 3 / 4;
+        private static MinusPiBy4 = - Math.PI / 4;
+        private static MinusThreePiBy4 = - Math.PI * 3 / 4;
 
-        private static MinDistanceFromTicks = 30;
+        private static MinWidthForAxisLabel = 150;
+        private static MinHeightForAxisLabel = 150;
         private static MinWidthForTargetLabel = 150;
-        private static ReducedLeftRightMargin = 15;
+        private static MinHeightForTargetLabel = 150;
+        private static ReducedHorizontalMargin = 15;
+        private static ReducedVerticaltMargin = 10;
+        private static UnitMargin = 5; //Used for logic
         private static DefaultMarginSettings: IMargin = {
             top: 20,
             bottom: 15,
-            left: 45,
-            right: 45
+            left: 15,
+            right: 15
         };
 
         private static DefaultMax = 1;
@@ -315,6 +378,9 @@ module powerbi.visuals {
             },
             callout: {
                 padding: 10,
+            },
+            target: {
+                padding: 10,
             }
         };
         private static DefaultRange1Color = '#0EFF23'; //Green;
@@ -327,6 +393,7 @@ module powerbi.visuals {
         private static MaxTargetRadiusFactor = 100 - Tachometer.BaseArcRadiusFactor;
         private static NeedleHeightToWidthRatio: number = 0.05; //Width of needle as a factor of its height
         private static MainTachometerGroupClassName = 'mainGroup';
+        private static AxisLabelsGroupClassName = 'axisLablesGroup';
         private static OverlayTachometerGroupClassName = 'overlayGroup';
         private static LabelText: ClassAndSelector = createClassAndSelector('labelText');
         private static TargetConnector: ClassAndSelector = createClassAndSelector('targetConnector');
@@ -338,6 +405,12 @@ module powerbi.visuals {
             objectName: 'general',
             propertyName: 'formatString',
         };
+        private static OverlapTolerance: number = 4;
+        private static AxisLabelPruningLimit: PruningLimit = { width: 3, height: 5 };
+        private static TargetLabelPruningLimit: PruningLimit = { width: 3, height: 4 };
+        private static CalloutPruningLimit: PruningLimit = { width: 1.2, height: 3 };
+        private static RadialClosenessThreshold = Math.PI / 6;
+        private static PreferHorizontalThreshold = Math.sin(Math.PI / 4);
 
         private currentViewport: IViewport;
         private element: JQuery;
@@ -352,6 +425,7 @@ module powerbi.visuals {
 
         private svg: D3.Selection;
         private mainGraphicsContext: D3.Selection;
+        private axisLabelsGraphicsContext: D3.Selection;
         private overlayGraphicsContext: D3.Selection;
         private axisScale: D3.Scale.LinearScale;
         private range1Arc: D3.Svg.Arc;
@@ -364,19 +438,26 @@ module powerbi.visuals {
         private range3ArcPath: D3.Selection;
         private centerArcPath: D3.Selection;
         private calloutLabel: D3.Selection;
+        private calloutRectangle: TachometerRectangle;
         private calloutPercent: D3.Selection;
+        private calloutPercentRectangle: TachometerRectangle;
         private needle: D3.Selection;
         private targetIndicator: D3.Selection;
         private targetConnector: D3.Selection;
         private targetText: D3.Selection;
+        private targetRectangle: TachometerRectangle;
         private gaugeStyle: TachometerStyle;
         private axisData: TachometerAxisData;
         private axisLabels: TachometerAxisLabel[];
         private tachometerSmallViewPortProperties: TachometerSmallViewPortProperties;
+        private showAxisLabels: boolean = false;
         private showTargetLabel: boolean = false;
+        private showCalloutValue: boolean = false;
+        private showCalloutPercent: boolean = false;
         private tooltipsEnabled: boolean;
         private hostService: IVisualHostServices;
         private dataView: DataView;
+        private metadataColumn: DataViewMetadataColumn;
 
         public static RoleNames: TachometerRoleNames = {
             y: 'Y',
@@ -784,7 +865,7 @@ module powerbi.visuals {
 
         private enumerateDataLabels(enumeration: ObjectEnumerationBuilder, objectName: string): void {
 
-            var labelSettings = this.viewModel && this.viewModel.axis.dataLabels ? this.viewModel.axis.dataLabels : Tachometer.getDefaultTachometerLabelSettings();
+            var labelSettings = this.viewModel && this.axisData.dataLabels ? this.axisData.dataLabels : Tachometer.getDefaultTachometerLabelSettings();
             var objects: DataViewObjects = this.dataView && this.dataView.metadata ? this.dataView.metadata.objects : null;
             var labelsObj: TachometerLabelObject = objects ? <TachometerLabelObject>objects[objectName] : null;
             var haslabelObject: boolean = (objects != null && labelsObj != null);
@@ -1029,7 +1110,7 @@ module powerbi.visuals {
         private setNiceLinearScale() {
             this.axisScale = d3.scale.linear();
             this.currentScaleType = axisType.linear;
-            var dataLabels: TachometerDataLabelsData = (this.viewModel && this.viewModel.axis) ? this.viewModel.axis.dataLabels : null;
+            var dataLabels: TachometerDataLabelsData = (this.axisData) ? this.axisData.dataLabels : null;
             if (dataLabels && dataLabels.show && dataLabels.round) { //get rounded tick marks
                 if (dataLabels.count > 0) {
                     this.axisScale.nice(dataLabels.count);
@@ -1119,6 +1200,8 @@ module powerbi.visuals {
             svg.classed(Tachometer.VisualClassName, true);
             var mainGraphicsContext = this.mainGraphicsContext = svg.append('g')
                 .attr('class', Tachometer.MainTachometerGroupClassName);
+            this.axisLabelsGraphicsContext = svg.append('g')
+                .attr('class', Tachometer.AxisLabelsGroupClassName);
             var overlayGraphicsContext = this.overlayGraphicsContext = svg.append('g')
                 .attr('class', Tachometer.OverlayTachometerGroupClassName);
 
@@ -1166,10 +1249,6 @@ module powerbi.visuals {
             viewModel = this.completeViewModel(viewModel);
             this.drawViewPort(viewModel);
 
-            this.axisLabels = this.createAxisLabels();
-            this.updateAxisLabelText(viewModel.axis, this.axisLabels);
-            this.updateTarget(viewModel);//target should be updated after tic values
-            //            this.updateVisualStyles();
             this.updateTooltips();
 
             var warnings = getInvalidValueWarnings(
@@ -1206,6 +1285,7 @@ module powerbi.visuals {
             offset: { x: 0, y: 0 },
             textColor: Tachometer.defaultLabelColor,
             fontSize: dataLabelUtils.minLabelFontSize,
+            textHeight: PixelConverter.fromPointToPixel(dataLabelUtils.minLabelFontSize),
         };
 
         private static initializeTachometerData(): TachometerAxisData {
@@ -1217,9 +1297,17 @@ module powerbi.visuals {
                 axisScaleType: axisType.linear,
                 value: 0,
                 radius: 1,
+                axisLabelRadius: 1,
                 tooltipItems: [],
                 valueRange: 0,
                 angleRange: 0,
+                directionClockwise: true,
+                startQuadrant: 3,
+                endQuadrant: 2,
+                cosStartAngle: 0,
+                cosEndAngle: 1,
+                sinStartAngle: 1,
+                sinEndAngle: 0,
                 range1: {
                     startValue: Tachometer.UnintializedRangeStartValue,
                     endValue: Tachometer.UnintializedEndValue,
@@ -1261,6 +1349,7 @@ module powerbi.visuals {
                     offset: { x: Tachometer.defaultTargetSettings.offset.x, y: Tachometer.defaultTargetSettings.offset.y },
                     textColor: Tachometer.defaultTargetSettings.textColor,
                     fontSize: Tachometer.defaultTargetSettings.fontSize,
+                    textHeight: Tachometer.defaultTargetSettings.textHeight,
                 },
                 offset: { x: 0, y: 0 },
                 transformString: '',
@@ -1308,18 +1397,6 @@ module powerbi.visuals {
             axisData = this.transformTachometerDataRoles(dataView, axisData);
             axisData = this.transformTachometerSettings(dataView, axisData);
 
-            var startAngle: number = Tachometer.normalizeAngle(axisData.startAngle);
-            var endAngle: number = Tachometer.normalizeAngle(axisData.endAngle);
-
-            if (startAngle > endAngle) {
-                //convert from a circular scale to a linear scale for simplicity
-                startAngle = startAngle - Tachometer.TwoPI;
-            }
-
-            axisData.startAngle = startAngle;
-            axisData.endAngle = endAngle;
-            axisData.angleRange = axisData.endAngle - axisData.startAngle;
-
             return axisData;
         }
 
@@ -1329,41 +1406,39 @@ module powerbi.visuals {
 
                 for (var i = 0; i < values.length; i++) {
                     var col = values[i].source;
-                    var value: number = <number>values[i].values[0] || 0;
+                    var value: number = <number>values[i].values[0];
+                    if (value !== undefined) axisData.tooltipItems.push({ value: value, metadata: values[i] });
                     if (col && col.roles) {
                         if (col.roles[Tachometer.RoleNames.y]) {
-                            if (isNaN(Number(value)))
-                                axisData.value = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.value = Tachometer.UnintializedStartValue;
                             else
                                 axisData.value = value;
                         } else if (col.roles[Tachometer.RoleNames.startValue]) {
-                            if (isNaN(Number(value)))
-                                axisData.startValue = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.startValue = Tachometer.UnintializedStartValue;
                             else
                                 axisData.startValue = value;
                         } else if (col.roles[Tachometer.RoleNames.endValue]) {
-                            if (isNaN(Number(value)))
-                                axisData.endValue = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.endValue = Tachometer.UnintializedEndValue;
                             else
                                 axisData.endValue = value;
                         } else if (col.roles[Tachometer.RoleNames.targetValue]) {
-                            if (isNaN(Number(value)))
-                                axisData.target.value = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.target.value = Tachometer.UnintializedStartValue;
                             else
                                 axisData.target.value = value;
-                            if (value) axisData.tooltipItems.push({ value: value, metadata: values[i] });
                         } else if (col.roles[Tachometer.RoleNames.range2StartValue]) {
-                            if (isNaN(Number(value)))
-                                axisData.range2.startValue = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.range2.startValue = Tachometer.UnintializedStartValue;
                             else
                                 axisData.range2.startValue = value;
-                            if (value) axisData.tooltipItems.push({ value: value, metadata: values[i] });
                         } else if (col.roles[Tachometer.RoleNames.range3StartValue]) {
-                            if (isNaN(Number(value)))
-                                axisData.range3.startValue = 0;
+                            if (value === undefined || isNaN(Number(value)))
+                                axisData.range3.startValue = Tachometer.UnintializedStartValue;
                             else
                                 axisData.range3.startValue = value;
-                            if (value) axisData.tooltipItems.push({ value: value, metadata: values[i] });
                         }
                     }
                 }
@@ -1377,9 +1452,17 @@ module powerbi.visuals {
             axisData.range1 = Tachometer.transformRangeSettings(dataView, 'range1', axisData.range1, Tachometer.DefaultRange1Color);
             axisData.range2 = Tachometer.transformRangeSettings(dataView, 'range2', axisData.range2, Tachometer.DefaultRange2Color);
             axisData.range3 = Tachometer.transformRangeSettings(dataView, 'range3', axisData.range3, Tachometer.DefaultRange3Color);
-            axisData.target = Tachometer.transformTargetSettings(dataView, axisData.target);
-            axisData.indicator = Tachometer.transformIndicatorSettings(dataView, axisData.indicator);
             axisData.dataLabels = Tachometer.transformDataLabelSettings(dataView, 'labels', Tachometer.getDefaultTachometerLabelSettings());
+            var dataLabels = axisData.dataLabels;
+            if (dataLabels.show) {
+                var value = Math.max(Math.abs(axisData.startValue), Math.abs(axisData.endValue));
+                var formatter = this.getFormatter(dataLabels.displayUnits, dataLabels.precision, value);
+                var formattedValue = formatter.format(value);
+                dataLabels.textWidth = Tachometer.getTextWidth(dataLabels.fontSizePx, formattedValue);
+            }
+
+            axisData.target = this.transformTargetSettings(dataView, axisData.target, axisData.dataLabels);
+            axisData.indicator = Tachometer.transformIndicatorSettings(dataView, axisData.indicator);
 
             return axisData;
         }
@@ -1388,11 +1471,11 @@ module powerbi.visuals {
         private static normalizeAngle(angle: number): number {
             var normalizedAngle: number = angle % Tachometer.TwoPI;
 
-            if (angle > Math.PI) {
-                normalizedAngle = angle - Tachometer.TwoPI;
+            if (normalizedAngle > Math.PI) {
+                normalizedAngle = normalizedAngle - Tachometer.TwoPI;
             }
-            else if (angle < - Math.PI) {
-                normalizedAngle = angle + Tachometer.TwoPI;
+            else if (normalizedAngle < - Math.PI) {
+                normalizedAngle = normalizedAngle + Tachometer.TwoPI;
             }
             return normalizedAngle;
         }
@@ -1419,19 +1502,56 @@ module powerbi.visuals {
                 axisData.endValue = axisOptions.endValue;
             }
 
+            var startAngle: number = Tachometer.normalizeAngle(axisData.startAngle);
+            var endAngle: number = Tachometer.normalizeAngle(axisData.endAngle);
+
+            if (startAngle > endAngle) {
+                //convert from a circular scale to a linear scale for simplicity
+                endAngle = endAngle + Tachometer.TwoPI;
+            }
+
+            axisData.startAngle = startAngle;
+            axisData.endAngle = endAngle;
+            axisData.angleRange = axisData.endAngle - axisData.startAngle;
+
+            var startValue = (axisData.startValue === Tachometer.UnintializedStartValue) ? Tachometer.DefaultMin : axisData.startValue;
+            var endValue = (axisData.endValue === Tachometer.UnintializedEndValue)
+                ? (axisData.value != null && axisData.value !== undefined ? axisData.value * 2 : Tachometer.DefaultMax)
+                : axisData.endValue;
+
+            if (startValue === 0 && endValue === 0) {
+                endValue = 1;
+            }
+
+            axisData.endValue = endValue;
+            axisData.startValue = startValue;
+            axisData.valueRange = endValue - startValue;
+            //Checking that the value is plotted inside the tachometer boundaries
+            var baseValue: number = Math.min(endValue, startValue);
+            var percent: number = axisData.valueRange !== 0 ? Math.abs((axisData.value - baseValue) * 100 / (axisData.valueRange)) : 0;
+            axisData.percent = percent;
+
+            axisData.directionClockwise = (axisData.endValue - axisData.startValue >= 0);
+            axisData.startQuadrant = Tachometer.getQuadrant(startAngle);
+            axisData.endQuadrant = Tachometer.getQuadrant(endAngle);
+            axisData.cosStartAngle = Math.cos(startAngle);
+            axisData.cosEndAngle = Math.cos(endAngle);
+            axisData.sinStartAngle = Math.sin(startAngle);
+            axisData.sinEndAngle = Math.sin(endAngle);
+
             return axisData;
         }
 
         private transform(dataView: DataView, tooltipsEnabled: boolean = true): TachometerViewModel {
             var axisData: TachometerAxisData = this.transformTachometerData(dataView);
+            this.metadataColumn = Tachometer.getMetaDataColumn(dataView);
 
             return {
-                metadataColumn: Tachometer.getMetaDataColumn(dataView),
                 axis: axisData,
                 tooltipInfo: Tachometer.getToolTipInfo(dataView, axisData, tooltipsEnabled),
                 callout: {
-                    calloutValue: Tachometer.transformDataLabelSettings(dataView, 'calloutValue', Tachometer.getDefaultTachometerCalloutSettings()),
-                    calloutPercent: Tachometer.transformDataLabelSettings(dataView, 'calloutPercent', Tachometer.getDefaultTachometerCalloutPercentSettings()),
+                    calloutValue: this.transformCalloutValue(dataView, axisData),
+                    calloutPercent: this.transformCalloutPercent(dataView, axisData),
                     baseOffset: { x: 0, y: 0 },
                 },
                 availableHeight: 0,
@@ -1439,6 +1559,37 @@ module powerbi.visuals {
                 viewportHeight: 0,
                 viewportWidth: 0
             };
+        }
+
+        private transformCalloutValue(dataView: DataView, axisData: TachometerAxisData): TachometerDataLabelsData {
+            var callout = Tachometer.transformDataLabelSettings(dataView, 'calloutValue', Tachometer.getDefaultTachometerCalloutSettings());
+            if (callout.show) {
+                var value = axisData.value;
+                callout.value = value.toString();
+                var formatter = this.getFormatter(callout.displayUnits, callout.precision, value);
+                var formattedValue = formatter.format(value);
+                callout.formattedValue = formattedValue;
+                callout.textWidth = Tachometer.getTextWidth(callout.fontSizePx, formattedValue);
+            }
+            return callout;
+        }
+
+        private transformCalloutPercent(dataView: DataView, axisData: TachometerAxisData): TachometerDataLabelsData {
+            var callout = Tachometer.transformDataLabelSettings(dataView, 'calloutPercent', Tachometer.getDefaultTachometerCalloutPercentSettings());
+            return callout;
+        }
+
+        private setCalloutPercentValue(calloutPercent: TachometerDataLabelsData, axisData: TachometerAxisData): TachometerDataLabelsData {
+            if (calloutPercent && calloutPercent.show) {
+                var value = calloutPercent.invert ? 100 - axisData.percent : axisData.percent;
+                calloutPercent.value = value.toString();
+                var formatter = this.getFormatter(calloutPercent.displayUnits, calloutPercent.precision, value, true);
+                var formattedValue = formatter.format(value);
+                formattedValue = (formattedValue === undefined) ? ' [-%]' : ' [' + formattedValue + '%]';
+                calloutPercent.formattedValue = formattedValue;
+                calloutPercent.textWidth = Tachometer.getTextWidth(calloutPercent.fontSizePx, formattedValue);
+            }
+            return calloutPercent;
         }
 
         private static getToolTipInfo(dataView: DataView, axisData: TachometerAxisData, tooltipsEnabled: boolean): TooltipDataItem[] {
@@ -1489,7 +1640,6 @@ module powerbi.visuals {
                 fontSize: Tachometer.DefaultCalloutFontSizeInPt,
                 offset: { x: undefined, y: undefined },
                 textHeight: PixelConverter.fromPointToPixel(Tachometer.DefaultCalloutFontSizeInPt)
-                + Tachometer.DefaultStyleProperties.callout.padding
             };
             return dataLabelSettings;
         }
@@ -1502,8 +1652,7 @@ module powerbi.visuals {
                 precision: dataLabelUtils.defaultLabelPrecision,
                 fontSize: Tachometer.DefaultCalloutPercentFontSizeInPt,
                 offset: { x: undefined, y: undefined },
-                textHeight: PixelConverter.fromPointToPixel(Tachometer.DefaultCalloutFontSizeInPt)
-                + Tachometer.DefaultStyleProperties.callout.padding,
+                textHeight: PixelConverter.fromPointToPixel(Tachometer.DefaultCalloutFontSizeInPt),
                 invert: false
             };
             return dataLabelSettings;
@@ -1530,8 +1679,7 @@ module powerbi.visuals {
                 if (labelsObj.fontSize !== undefined) {
                     dataLabelsSettings.fontSize = labelsObj.fontSize;
                     dataLabelsSettings.fontSizePx = PixelConverter.fromPoint(labelsObj.fontSize);
-                    dataLabelsSettings.textHeight = PixelConverter.fromPointToPixel(labelsObj.fontSize)
-                        + Tachometer.DefaultStyleProperties.callout.padding;
+                    dataLabelsSettings.textHeight = PixelConverter.fromPointToPixel(labelsObj.fontSize);
                 }
                 if (labelsObj.count != null && labelsObj.count !== undefined) {
                     dataLabelsSettings.count = labelsObj.count;
@@ -1619,7 +1767,7 @@ module powerbi.visuals {
             return rangeSettings;
         }
 
-        private static transformTargetSettings(dataView: DataView, targetSettings: TachometerTargetData): TachometerTargetData {
+        private transformTargetSettings(dataView: DataView, targetSettings: TachometerTargetData, dataLabels: TachometerDataLabelsData): TachometerTargetData {
             var objects: TachometerTargetObjects = dataView && dataView.metadata ? <TachometerTargetObjects>dataView.metadata.objects : null;
             var targetObject: TachometerTargetObject = objects ? objects.target : null;
             var hasTargetObject: boolean = (objects != null && targetObject != null);
@@ -1667,6 +1815,10 @@ module powerbi.visuals {
                 targetSettings.innerRadius = Tachometer.defaultTargetSettings.innerRadius;
                 targetSettings.textColor = Tachometer.defaultTargetSettings.textColor;
                 targetSettings.fontSize = Tachometer.defaultTargetSettings.fontSize;
+            }
+            if (targetSettings.show) {
+                targetSettings.fontSizePx = PixelConverter.fromPoint(targetSettings.fontSize);
+                targetSettings.textHeight = PixelConverter.fromPointToPixel(targetSettings.fontSize);
             }
             return targetSettings;
         }
@@ -1728,12 +1880,16 @@ module powerbi.visuals {
             return null;
         }
 
-        private removeTargetElements() {
-            if (this.targetIndicator) {
+        private removeTargetElements(removeAll: boolean) {
+
+            if ((removeAll) && (this.targetIndicator)) {
                 this.targetIndicator.remove();
+                this.targetIndicator = null;
+            }
+            if (this.targetConnector) {
                 this.targetText.remove();
                 this.targetConnector.remove();
-                this.targetIndicator = this.targetConnector = this.targetText = null;
+                this.targetConnector = this.targetText = null;
             }
         }
 
@@ -1761,6 +1917,22 @@ module powerbi.visuals {
                 .style('stroke', target.lineColor);
         }
 
+        private getAvailebleWidth(viewport: IViewport, margins: Margins): number {
+            return viewport.width
+                - margins.mainMargin.left - margins.mainMargin.right
+                - Math.max(margins.targetMargin.right, margins.labelMargin.right)
+                - Math.max(margins.targetMargin.left, margins.labelMargin.left) ;
+        }
+
+        private getAvailebleHeight(viewport: IViewport, margins: Margins, calloutValueSpace: number, calloutPercentSpace: number): number {
+            return viewport.height
+                - margins.mainMargin.top - margins.mainMargin.bottom
+                - margins.labelMargin.top - margins.labelMargin.bottom
+                - margins.targetMargin.top - margins.targetMargin.bottom
+                - calloutValueSpace
+                - calloutPercentSpace;
+        }
+
         private completeViewModel(viewModel: TachometerViewModel): TachometerViewModel {
             var viewport = this.currentViewport;
             var calloutTextHeight = 0;
@@ -1770,70 +1942,198 @@ module powerbi.visuals {
             var axisData = viewModel.axis;
             var calloutValueUserDefinedYOffset = 0;
             var calloutPercentUserDefinedYOffset = 0;
-
-            var startValue = (axisData.startValue === Tachometer.UnintializedStartValue) ? Tachometer.DefaultMin : axisData.startValue;
-            var endValue = (axisData.endValue === Tachometer.UnintializedEndValue)
-                ? (axisData.value != null && axisData.value !== undefined ? axisData.value * 2 : Tachometer.DefaultMax)
-                : axisData.endValue;
-
-            if (startValue === 0 && endValue === 0) {
-                endValue = 1;
-            }
-
-            axisData.endValue = endValue;
-            axisData.startValue = startValue;
-            axisData.valueRange = endValue - startValue;
+            var maxRenderWidth = viewport.width - 2 * Tachometer.ReducedHorizontalMargin;
+            var maxRenderHeight = viewport.height - Tachometer.DefaultMarginSettings.top - Tachometer.DefaultMarginSettings.bottom;
 
             this.axisData = axisData;
             this.setAxisScale(axisData);
+
+            var callout: TachometerCalloutSettings = viewModel.callout;
+            var calloutValue = callout ? callout.calloutValue : undefined;
+            var calloutPercent = callout ? callout.calloutPercent : undefined;
+            this.setCalloutPercentValue(calloutPercent, axisData);
+            this.completeTargetTextProperties(axisData);
+            var showLabels = this.showLabelText();
+
+            // Only show the target label if:
+            //   1. There is a target
+            //   2. The viewport width is big enough for a target
+            this.showAxisLabels = axisData.dataLabels.show
+                && (maxRenderWidth > Tachometer.MinWidthForAxisLabel)
+                && (maxRenderWidth > axisData.dataLabels.textWidth * Tachometer.AxisLabelPruningLimit.width)
+                && (maxRenderHeight > Tachometer.MinHeightForAxisLabel)
+                && (maxRenderHeight > axisData.dataLabels.textHeight * Tachometer.AxisLabelPruningLimit.height)
+                && showLabels;
 
             // Only show the target label if:
             //   1. There is a target
             //   2. The viewport width is big enough for a target
             this.showTargetLabel = (axisData.target.value !== Tachometer.UnintializedStartValue)
                 && axisData.target.show
-                && (this.currentViewport.width > Tachometer.MinWidthForTargetLabel)
-                && this.showLabelText();
+                && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
+                && (maxRenderWidth > axisData.target.textWidth * Tachometer.TargetLabelPruningLimit.width)
+                && (maxRenderHeight > Tachometer.MinHeightForTargetLabel)
+                && (maxRenderHeight > axisData.target.textHeight * Tachometer.TargetLabelPruningLimit.height)
+                && showLabels;
+
+            // Only show the callout Value label if:
+            //   1. There is a callout Value
+            //   2. The viewport width is big enough for a target
+            this.showCalloutValue = calloutValue
+                && calloutValue.show
+                && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
+                && (maxRenderWidth > calloutValue.textWidth * Tachometer.CalloutPruningLimit.width)
+                && (maxRenderHeight > Tachometer.MinHeightForTargetLabel)
+                && (maxRenderHeight > calloutValue.textHeight * Tachometer.CalloutPruningLimit.height)
+                && showLabels;
+
+            // Only show the callout Percent label if:
+            //   1. There is a callout Percent
+            //   2. The viewport width is big enough for a target
+            this.showCalloutPercent = calloutPercent
+                && calloutPercent.show
+                && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
+                && (maxRenderWidth > calloutPercent.textWidth * Tachometer.CalloutPruningLimit.width)
+                && (maxRenderHeight > Tachometer.MinHeightForTargetLabel)
+                && (maxRenderHeight > calloutPercent.textHeight * Tachometer.CalloutPruningLimit.height)
+                && showLabels;
 
             axisData.dataLabels.formatter = this.getWiderFormatter(axisData.dataLabels, axisData.startValue, axisData.endValue);
-            var margin = this.defineMargins();
-            var width = viewport.width - margin.right - margin.left;
-
-            var callout: TachometerCalloutSettings = viewModel.callout;
-            if (callout && callout.calloutPercent && callout.calloutPercent.show) {
-                calloutPercentTextHeight = callout.calloutPercent.textHeight;
-                var yOffsetBaseEstimate = viewport.height - (margin.bottom + calloutPercentTextHeight);
-                //Adjust for user defined label displacement
-                calloutPercentUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutPercent, viewport.height);
+            var margins: Margins = this.defineMargins(axisData);
+            var availableWidth = this.getAvailebleWidth(viewport, margins);
+            if (availableWidth < 0) {
+                this.showAxisLabels = false;
+                this.showTargetLabel = false;
+                margins = this.defineMargins(axisData);
+                availableWidth = this.getAvailebleWidth(viewport, margins);
+                if (availableWidth < 0) {
+                    availableWidth = 0;
+                    this.showCalloutValue = false;
+                    this.showCalloutPercent = false;
+                }
             }
-            calloutPercentSpace = calloutPercentUserDefinedYOffset >= 0 ?
-                calloutPercentTextHeight : Math.max(calloutPercentTextHeight + calloutPercentUserDefinedYOffset, 0);
 
-            if (callout && callout.calloutValue && callout.calloutValue.show) {
-                calloutTextHeight = callout.calloutValue.textHeight;
-                var yOffsetBaseEstimate = viewport.height - (margin.bottom + calloutTextHeight);
+            if (this.showCalloutPercent) {
+                calloutPercentTextHeight = callout.calloutPercent.textHeight + this.gaugeStyle.callout.padding;
+                var yOffsetBaseEstimate = viewport.height - (Tachometer.DefaultMarginSettings.bottom + calloutPercentTextHeight);
                 //Adjust for user defined label displacement
-                calloutValueUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutValue, viewport.height);
+                calloutPercentUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutPercent, viewport.height, this.gaugeStyle.callout.padding);
+                calloutPercentSpace = calloutPercentUserDefinedYOffset >= 0 ?
+                    calloutPercentTextHeight : Math.max(calloutPercentTextHeight + calloutPercentUserDefinedYOffset, 0);
             }
-            calloutValueSpace = calloutValueUserDefinedYOffset >= 0 ?
-                calloutTextHeight : Math.max(calloutTextHeight + calloutValueUserDefinedYOffset, 0);
 
-            var availableHeight = viewport.height - margin.top - margin.bottom - calloutValueSpace - calloutPercentSpace;
+            if (this.showCalloutValue) {
+                calloutTextHeight = callout.calloutValue.textHeight + this.gaugeStyle.callout.padding;
+                var yOffsetBaseEstimate = viewport.height - (Tachometer.DefaultMarginSettings.bottom + calloutTextHeight);
+                //Adjust for user defined label displacement
+                calloutValueUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutValue, viewport.height, this.gaugeStyle.callout.padding);
+                calloutValueSpace = calloutValueUserDefinedYOffset >= 0 ?
+                    calloutTextHeight : Math.max(calloutTextHeight + calloutValueUserDefinedYOffset, 0);
+            }
+
+            var availableHeight = this.getAvailebleHeight(viewport, margins, calloutValueSpace, calloutPercentSpace);
+
+            if (availableHeight < 0) {
+                this.showAxisLabels = this.showTargetLabel = this.showCalloutValue = this.showCalloutPercent = false;
+                calloutValueSpace = calloutPercentSpace = 0;
+                availableHeight = Math.max(viewport.height - margins.mainMargin.top - margins.mainMargin.bottom, 0);
+            }
+
             var translation: TachometerTranslationSettings =
-                this.calculateTranslation(axisData.startAngle, axisData.endAngle, availableHeight, width);
+                this.calculateGaugeTranslation(axisData, axisData.startAngle, axisData.endAngle, availableHeight, availableWidth);
+
+            //Remove axis labels and recalculate gauge translation if radius is too small
+            var radius = translation.radius;
+            if (this.showAxisLabels && (radius < Math.max(margins.labelMargin.top, margins.labelMargin.bottom))) {
+                this.showAxisLabels = false;
+                margins = this.defineMargins(axisData);
+                var availableHeight = this.getAvailebleHeight(viewport, margins, calloutValueSpace, calloutPercentSpace);
+
+                if (availableHeight < 0) {
+                    this.showAxisLabels = this.showTargetLabel = this.showCalloutValue = this.showCalloutPercent = false;
+                    calloutValueSpace = calloutPercentSpace = 0;
+                    margins = this.defineMargins(axisData);
+                    availableHeight = Math.max(this.getAvailebleHeight(viewport, margins, calloutValueSpace, calloutPercentSpace), 0);
+                }
+
+                var availableWidth = this.getAvailebleWidth(viewport, margins);
+                if (availableWidth < 0) {
+                    this.showAxisLabels = false;
+                    this.showTargetLabel = false;
+                    margins.mainMargin.left = margins.mainMargin.right = Tachometer.ReducedHorizontalMargin;
+                    availableWidth = viewport.width - margins.mainMargin.right - margins.mainMargin.left;
+                    if (availableWidth < 0) {
+                        availableWidth = 0;
+                        this.showCalloutValue = false;
+                        this.showCalloutPercent = false;
+                    }
+                }
+                translation = this.calculateGaugeTranslation(axisData, axisData.startAngle, axisData.endAngle, availableHeight, availableWidth);
+                radius = translation.radius;
+            }
+
+            //Remove target label and recalculate gauge translation if radius is too small
+            if (this.showTargetLabel && (radius < Math.max(margins.labelMargin.top, margins.labelMargin.bottom))) {
+                this.showTargetLabel = false;
+
+                margins = this.defineMargins(axisData);
+                var availableHeight = this.getAvailebleHeight(viewport, margins, calloutValueSpace, calloutPercentSpace);
+
+                if (availableHeight < 0) {
+                    this.showAxisLabels = this.showTargetLabel = this.showCalloutValue = this.showCalloutPercent = false;
+                    calloutValueSpace = calloutPercentSpace = 0;
+                    margins = this.defineMargins(axisData);
+                    availableHeight = Math.max(this.getAvailebleHeight(viewport, margins, calloutValueSpace, calloutPercentSpace), 0);
+                }
+
+                var availableWidth = this.getAvailebleWidth(viewport, margins);
+                if (availableWidth < 0) {
+                    this.showAxisLabels = false;
+                    this.showTargetLabel = false;
+                    margins.mainMargin.left = margins.mainMargin.right = Tachometer.ReducedHorizontalMargin;
+                    availableWidth = viewport.width - margins.mainMargin.right - margins.mainMargin.left;
+                    if (availableWidth < 0) {
+                        availableWidth = 0;
+                        this.showCalloutValue = false;
+                        this.showCalloutPercent = false;
+                    }
+                }
+                translation = this.calculateGaugeTranslation(axisData, axisData.startAngle, axisData.endAngle, availableHeight, availableWidth);
+            }
+
+            //the translation above should be moved down by this much to accomodate for target and axisLabels and margin
+            var translationOffsetY = margins.mainMargin.top + margins.labelMargin.top + margins.targetMargin.top;
+            translation.yOffset += translationOffsetY;
+            translation.calloutyOffset += translationOffsetY + margins.labelMargin.bottom + margins.targetMargin.bottom;
+            //the translation above should be moved right by this much to accomodate for target and axisLabels and margin
+            var translationOffsetX = margins.mainMargin.left + Math.max(margins.labelMargin.left, margins.targetMargin.left);
+            translation.xOffset += translationOffsetX;
+            translation.calloutxOffset += translationOffsetX;
 
             viewModel.viewportHeight = viewport.height;
             viewModel.viewportWidth = viewport.width;
             viewModel.availableHeight = availableHeight;
-            viewModel.availableWidth = width;
-            viewModel.axis = this.completeAxis(axisData, translation, margin);
-            viewModel.callout = this.completeCallout(callout, translation, margin);
-            viewModel.margin = margin;
-
+            viewModel.availableWidth = availableWidth;
+            viewModel.axis = this.completeAxis(axisData, translation);
+            viewModel.callout = this.completeCallout(callout, translation);
             return viewModel;
         }
 
-        private completeAxis(axisData: TachometerAxisData, translation: TachometerTranslationSettings, margin: IMargin): TachometerAxisData {
+        private completeTargetTextProperties(axis: TachometerAxisData) {
+            //this method has to be called before we calculate the gauge radius but
+            //after reading target Properties as well as gauge axis label properties becaust of the dependancy below
+            var targetSettings = axis.target;
+            if (targetSettings.show) {
+                var dataLabels = axis.dataLabels;
+                var value = targetSettings.value;
+                var formatter = this.getFormatter(dataLabels.displayUnits, dataLabels.precision, value); //Note: Target uses DataLabel settings
+                var formattedValue = formatter.format(value);
+                targetSettings.formattedValue = formattedValue;
+                targetSettings.textWidth = Tachometer.getTextWidth(targetSettings.fontSizePx, formattedValue);
+            }
+        }
+
+        private completeAxis(axisData: TachometerAxisData, translation: TachometerTranslationSettings): TachometerAxisData {
             var radius = translation.radius;
             //TODO Convert ranges to an array in view model
             var range1 = axisData.range1;
@@ -1870,19 +2170,14 @@ module powerbi.visuals {
             axisData.range3 = this.completeAxisRange(axisData.range3, radius);
 
             axisData.radius = radius;
-            var xOffset: number = margin.left + translation.xOffset;
-            var yOffset: number = margin.top + translation.yOffset;
+            axisData.axisLabelRadius = radius + this.gaugeStyle.labels.padding;
+            var xOffset: number = translation.xOffset;
+            var yOffset: number = translation.yOffset;
             axisData.offset.x = xOffset;
             axisData.offset.y = yOffset;
             axisData.transformString = SVGUtil.translate(xOffset, yOffset);
             axisData.indicator = this.completeIndicator(axisData.indicator, translation, axisData.offset, axisData.value);
             axisData.target = this.completeTarget(axisData.target, axisData);
-
-            //Checking that the value is plotted inside the tachometer boundaries
-            var baseValue: number = Math.min(axisData.endValue, axisData.startValue);
-            var percent: number = axisData.valueRange !== 0 ? Math.abs((axisData.value - baseValue) * 100 / (axisData.valueRange)) : 0;
-
-            axisData.percent = percent;
 
             return axisData;
         }
@@ -1896,9 +2191,9 @@ module powerbi.visuals {
             return range;
         }
 
-        private completeCallout(callout: TachometerCalloutSettings, translation: TachometerTranslationSettings, margin: IMargin): TachometerCalloutSettings {
-            callout.baseOffset.x = margin.left + translation.calloutxOffset;
-            callout.baseOffset.y = margin.top + translation.calloutyOffset;
+        private completeCallout(callout: TachometerCalloutSettings, translation: TachometerTranslationSettings): TachometerCalloutSettings {
+            callout.baseOffset.x = translation.calloutxOffset;
+            callout.baseOffset.y = translation.calloutyOffset;
 
             return callout;
         }
@@ -1912,7 +2207,6 @@ module powerbi.visuals {
             target.innerRadius = Tachometer.clamp(target.innerRadius, axisData.indicator.baseRadius, axisData.radius);
             target.offset.x = axisData.offset.x;
             target.offset.y = axisData.offset.y;
-            target.fontSizePx = PixelConverter.fromPoint(target.fontSize);
 
             return target;
         }
@@ -1953,37 +2247,45 @@ module powerbi.visuals {
             debug.assertAnyValue(viewModel, 'Tachometer options');
 
             this.updateVisualComponents(viewModel);
-            this.updateCallout(viewModel);
+            this.updateCallout(viewModel);//callout should be updated after axis labels
+            this.axisLabels = this.createAxisLabels();
+            this.updateAxisLabelText(viewModel.axis, this.axisLabels);
+            this.updateTarget(viewModel);//target should be updated after axis labels and callout
 
             this.svg.attr('height', this.currentViewport.height).attr('width', this.currentViewport.width);
         }
 
         private updateTarget(viewModel: TachometerViewModel) {
-            var axis = viewModel.axis;
-            var target = axis.target;
+            var target = viewModel.axis.target;
 
-            if (this.showTargetLabel) {
+            if ((target.show)&&(target.value !== Tachometer.UnintializedStartValue)) {
                 this.updateTargeIndicator(target);
-                this.updateTargetText(viewModel, this.axisLabels);
+                if (this.showTargetLabel) {
+                    this.updateTargetText(viewModel, this.axisLabels);
+                }
+                else {
+                    this.removeTargetElements(false);
+                }
             } else {
-                this.removeTargetElements();
+                this.removeTargetElements(true);
             }
         }
 
         //Convert the percent value of offset into a pixel value 
         private static translateUserYOffset
-            (baseYOffset: number, callout: TachometerDataLabelsData, height: number): number {
+            (baseYOffset: number, callout: TachometerDataLabelsData, height: number, padding: number): number {
             var yOffsetPercent = callout.offset.y;
 
             if (yOffsetPercent !== 0) {
-                var halfTextHight = callout.textHeight / 2;
-                var userYOffset = yOffsetPercent / 100 * height;
+                var topThreshold = padding;
+                var bottomThreshold = height - callout.textHeight - padding;
+                var userYOffset = yOffsetPercent / 100 * baseYOffset;
                 var offset = userYOffset + baseYOffset;
 
-                return offset < halfTextHight
-                    ? halfTextHight - baseYOffset //goinig too high
-                    : offset > height
-                        ? height - halfTextHight - baseYOffset //going too low
+                return offset < topThreshold
+                    ? topThreshold - baseYOffset //goinig too high
+                    : offset > bottomThreshold
+                        ? bottomThreshold - baseYOffset //going too low
                         : userYOffset;
             }
             else {
@@ -1991,11 +2293,11 @@ module powerbi.visuals {
             }
         }
 
-        private static getTextWidth(dataLabelSettings: TachometerDataLabelsData, text: string) {
+        private static getTextWidth(fontSizePx: string, text: string) {
             var textProperties: TextProperties = {
                 text: text,
                 fontFamily: NewDataLabelUtils.LabelTextProperties.fontFamily,
-                fontSize: dataLabelSettings.fontSizePx,
+                fontSize: fontSizePx,
                 fontWeight: NewDataLabelUtils.LabelTextProperties.fontWeight,
             };
             return TextMeasurementService.measureSvgTextWidth(textProperties);
@@ -2003,17 +2305,18 @@ module powerbi.visuals {
 
         //Convert the percent value of offset into a pixel value 
         private static translateUserXOffset
-            (baseXOffset: number, callout: TachometerDataLabelsData, width: number, text: string): number {
+            (baseXOffset: number, callout: TachometerDataLabelsData, width: number, textWidth: number, padding: number): number {
             var xOffsetPercent = callout.offset.x;
             if (xOffsetPercent !== 0) {
-                var userXOffset = xOffsetPercent / 200 * width; //we have width /2 on either side
-                var halftextWidth: number = Tachometer.getTextWidth(callout, text) / 2;
+                var userXOffset = xOffsetPercent / 200 * (width - textWidth - 2 * padding) ; //we have width /2 on either side
+                var threshold: number = textWidth / 2 + padding;
                 var offset = baseXOffset + userXOffset;
 
-                return offset < halftextWidth
-                    ? halftextWidth - baseXOffset //too far left
-                    : offset > width - halftextWidth
-                        ? width - halftextWidth - baseXOffset // too far right so clamp it
+                //return the offset from the base offet
+                return offset < threshold
+                    ? threshold - baseXOffset //too far left
+                    : offset > width - threshold
+                        ? width - threshold - baseXOffset // too far right so clamp it
                         : userXOffset;
             }
             else {
@@ -2025,37 +2328,48 @@ module powerbi.visuals {
             var callout = viewModel.callout;
             var calloutValue = callout.calloutValue;
             var calloutPercent = callout.calloutPercent;
-            var axis = viewModel.axis;
-            var total = axis.value;
-            var dataLabels = viewModel.axis.dataLabels;
-            var yOffsetBase = callout.baseOffset.y + (dataLabels.show ? dataLabels.textHeight : 0); //leave room for datalabels
+            var yOffsetBase = callout.baseOffset.y;
             var xOffsetBase = callout.baseOffset.x;
 
-            if (calloutValue.show) {
-                var formatter = this.getFormatter(calloutValue, total);
-                var value = formatter.format(total);
-                yOffsetBase = yOffsetBase + calloutValue.textHeight / 2;
+            if (this.showCalloutValue) {
+                var value = calloutValue.formattedValue;
 
-                var userYOffset = Tachometer.translateUserYOffset(yOffsetBase, calloutValue, viewModel.viewportHeight);
-                var userXOffset = Tachometer.translateUserXOffset(xOffsetBase, calloutValue, viewModel.viewportWidth, value);
+                var userYOffset = Tachometer.translateUserYOffset(yOffsetBase, calloutValue, viewModel.viewportHeight, this.gaugeStyle.callout.padding);
+                var userXOffset = Tachometer.translateUserXOffset(xOffsetBase, calloutValue, viewModel.viewportWidth, calloutValue.textWidth, this.gaugeStyle.callout.padding);
 
-                this.calloutLabel
-                    .attr('transform',
-                    SVGUtil.translate(
-                        xOffsetBase + userXOffset,
-                        yOffsetBase + userYOffset))
-                    .style({
-                        'fill': calloutValue.labelColor,
-                        'text-anchor': 'middle',
-                        'font-size': calloutValue.fontSizePx,
-                        'display': '',
-                    })
-                    .text(value);
+                this.calloutRectangle = {
+                    left: xOffsetBase + userXOffset - calloutValue.textWidth / 2,
+                    top: yOffsetBase + userYOffset,
+                    right: xOffsetBase + userXOffset + calloutValue.textWidth / 2,
+                    bottom: yOffsetBase + userYOffset + calloutValue.textHeight,
+                };
 
-                yOffsetBase = yOffsetBase + calloutValue.textHeight / 2;
-                //Set Base for CalloutPercent
-                if (userYOffset < 0) {
-                    yOffsetBase = Math.max(yOffsetBase + userYOffset, callout.baseOffset.y);
+                if (this.isWithinBounds(this.calloutRectangle)) {
+                    this.calloutLabel
+                        .attr('transform',
+                        SVGUtil.translate(
+                            xOffsetBase + userXOffset,
+                            this.calloutRectangle.bottom))
+                        .style({
+                            'fill': calloutValue.labelColor,
+                            'text-anchor': 'middle',
+                            'font-size': calloutValue.fontSizePx,
+                            'display': '',
+                        })
+                        .text(value);
+
+                    yOffsetBase = yOffsetBase + calloutValue.textHeight + this.gaugeStyle.callout.padding;
+                    //Set Base for CalloutPercent
+                    if (userYOffset < 0) {
+                        yOffsetBase = Math.max(yOffsetBase + userYOffset, callout.baseOffset.y);
+                    }
+                }
+                else {
+                    this.calloutLabel
+                        .style({
+                            'display': 'none',
+                        });
+                    this.calloutRectangle = null;
                 }
             }
             else {
@@ -2063,49 +2377,58 @@ module powerbi.visuals {
                     .style({
                         'display': 'none',
                     });
+                this.calloutRectangle = null;
             }
-            if (calloutPercent.show) {
-                var percent = calloutPercent.invert ? 100 - axis.percent : axis.percent;
+            if (this.showCalloutPercent) {
+                var value = calloutPercent.formattedValue;
+                var userYOffset = Tachometer.translateUserYOffset(yOffsetBase, calloutPercent, viewModel.viewportHeight, this.gaugeStyle.callout.padding);
+                var userXOffset = Tachometer.translateUserXOffset(xOffsetBase, calloutPercent, viewModel.viewportWidth, calloutPercent.textWidth, this.gaugeStyle.callout.padding);
 
-                var formatter = this.getFormatter(calloutPercent, percent, true);
-                var value = formatter.format(percent);
-                value = ' [' + value + '%]';
-                yOffsetBase = yOffsetBase + calloutPercent.textHeight / 2;
+                this.calloutPercentRectangle = {
+                    left: xOffsetBase + userXOffset - calloutPercent.textWidth / 2,
+                    top: yOffsetBase + userYOffset,
+                    right: xOffsetBase + userXOffset + calloutPercent.textWidth / 2,
+                    bottom: yOffsetBase + userYOffset + calloutPercent.textHeight,
+                };
 
-                var userYOffset = Tachometer.translateUserYOffset(yOffsetBase, calloutPercent, viewModel.viewportHeight);
-                var userXOffset = Tachometer.translateUserXOffset(xOffsetBase, calloutPercent, viewModel.viewportWidth, value);
-
-                this.calloutPercent
-                    .attr('transform',
-                    SVGUtil.translate(
-                        xOffsetBase + userXOffset,
-                        yOffsetBase + userYOffset
-                    ))
-                    .style({
-                        'fill': calloutPercent.labelColor,
-                        'text-anchor': 'middle',
-                        'font-size': calloutPercent.fontSizePx,
-                        'display': '',
-                    })
-                    .text(value);
+                if (this.isOverlapping(this.calloutRectangle, this.calloutPercentRectangle) || !this.isWithinBounds(this.calloutPercentRectangle)) {
+                    this.calloutPercent.style({ 'display': 'none' });
+                }
+                else {
+                    this.calloutPercent
+                        .attr('transform',
+                        SVGUtil.translate(
+                            xOffsetBase + userXOffset,
+                            this.calloutPercentRectangle.bottom
+                        ))
+                        .style({
+                            'fill': calloutPercent.labelColor,
+                            'text-anchor': 'middle',
+                            'font-size': calloutPercent.fontSizePx,
+                            'display': '',
+                        })
+                        .text(value);
+                }
             }
             else {
-                this.calloutPercent
-                    .style({
-                        'display': 'none',
-                    });
+                this.calloutPercent.style({ 'display': 'none' });
+                this.calloutPercentRectangle = null;
             }
+        }
+
+        private isOverlappingWithCallout(rectangle: TachometerRectangle) {
+            return this.isOverlapping(rectangle, this.calloutRectangle) || this.isOverlapping(rectangle, this.calloutPercentRectangle);
         }
 
         private getWiderFormatter(dataLabelSettings: TachometerDataLabelsData, value1: number, value2: number): IValueFormatter {
             var widerLabelValue = Math.abs(value1) > Math.abs(value2) ? value1 : value2;
-            return this.getFormatter(dataLabelSettings, widerLabelValue);
+            return this.getFormatter(dataLabelSettings.displayUnits, dataLabelSettings.precision, widerLabelValue);
         }
 
         private createNiceRoundLabels(): TachometerAxisLabel[] {
             var axisLabels: TachometerAxisLabel[] = [];
             var axisData = this.axisData;
-            var dataLabels: TachometerDataLabelsData = this.viewModel.axis.dataLabels;
+            var dataLabels: TachometerDataLabelsData = axisData.dataLabels;
 
             var ticCount = (Math.abs(axisData.valueRange) > 1) ? dataLabels.count
                 : 1; //Show only the start and end values
@@ -2113,10 +2436,14 @@ module powerbi.visuals {
             if (ticCount > 0) {
                 var ticks: number[] = this.axisScale.ticks(ticCount);
                 ticCount = ticks.length; //This is the real tic count when this.data.dataLabelsSettings.round = true
-                var radius = this.viewModel.axis.radius;
+                var radius = this.axisData.radius;
+                var fontSizePx = dataLabels.fontSizePx;
+                var textHeight = PixelConverter.fromPointToPixel(dataLabels.fontSize);
+
                 var lastAngle: number = Tachometer.UnintializedStartValue; // initialize to a very small number
                 var reduce = dataLabels.reduce;
                 var lastDisplayValue = '';
+                var lastAxisLabel: TachometerAxisLabel;
                 for (var i = 0; i < ticCount; i++) {
                     var value = ticks[i];
                     var angle = this.axisScale(value);
@@ -2125,42 +2452,112 @@ module powerbi.visuals {
                         (Math.abs(lastAngle - angle) * radius) >= Tachometer.MinLabelDistance)) //to avoid overcrowding with labels
                         && (lastDisplayValue !== currentDisplayValue)) //to avoid repeating labels when they become rounded by Display Units
                     {
-                        var axisLabel: TachometerAxisLabel = {
-                            displayValue: currentDisplayValue,
-                            value: value,
-                            angle: angle
-                        };
-                        axisLabels.push(axisLabel);
-                        lastAngle = angle;
-                        lastDisplayValue = currentDisplayValue;
+                        var axisLabel: TachometerAxisLabel = this.createAxisLabel(currentDisplayValue, value, fontSizePx, textHeight, angle);
+
+                        if (this.isWithinBounds(axisLabel.rect)
+                            && (!lastAxisLabel || (lastAxisLabel && !this.isOverlapping(lastAxisLabel.rect, axisLabel.rect)))
+                            && !this.isOverlappingWithCallout(axisLabel.rect)
+                        ) {
+                            axisLabels.push(axisLabel);
+                            lastAngle = angle;
+                            lastDisplayValue = currentDisplayValue;
+                            lastAxisLabel = axisLabel;
+                        }
                     }
                 }
             }
             return axisLabels;
         }
 
+        private isWithinBounds(rectangle: TachometerRectangle): boolean {
+            return (rectangle != null) && ((rectangle.left > 0) && (rectangle.right < this.currentViewport.width) && (rectangle.top > 0) && (rectangle.bottom < this.currentViewport.height));
+        }
+
+        //Return true if the two labels defined by 
+        private isOverlapping(rect1: TachometerRectangle, rect2: TachometerRectangle): boolean {
+            if (!rect1 || !rect2) {
+                return false;
+            }
+
+            var left = rect1.left - Tachometer.OverlapTolerance;
+            var right = rect1.right + Tachometer.OverlapTolerance;
+            var top = rect1.top - Tachometer.OverlapTolerance;
+            var bottom = rect1.bottom + Tachometer.OverlapTolerance;
+
+            return !(((left >= rect2.left && right >= rect2.left) && (left >= rect2.right && right >= rect2.right))
+                || ((left <= rect2.left && right <= rect2.left) && (left <= rect2.right && right <= rect2.right))
+                || ((top >= rect2.top && bottom >= rect2.top) && (top >= rect2.bottom && bottom >= rect2.bottom))
+                || ((top <= rect2.top && bottom <= rect2.top) && (top <= rect2.bottom && bottom <= rect2.bottom)));
+        }
+
+        private createAxisLabel(displayValue: string, value: number, textSizePx: string, fontHeight: number, angle: number): TachometerAxisLabel {
+            var axis = this.axisData;
+            var radius = axis.axisLabelRadius;
+            var xOffset = axis.offset.x;
+            var yOffset = axis.offset.y;
+
+            var sinAngle = Math.sin(angle);
+            var cosAngle = Math.cos(angle);
+            var onBottomHalf = cosAngle < 0;
+            var ticX = xOffset + radius * sinAngle;
+            var ticY = yOffset - (radius + (onBottomHalf ? fontHeight : 0)) * cosAngle;
+
+            //Is the target on left side or right side of verticle?
+            var onRightSide: boolean = sinAngle > 0;
+            var textWidth = Tachometer.getTextWidth(textSizePx, displayValue);
+            var rect: TachometerRectangle = {
+                left: onRightSide ? ticX : ticX - textWidth, //gauranteed that x1 < x2 for simplified processing later
+                top: ticY - fontHeight, //gauranteed that y1 < y2 for simplified processing later
+                right: onRightSide ? ticX + textWidth : ticX,
+                bottom: ticY
+            };
+
+            return {
+                show: true,
+                displayValue: displayValue,
+                value: value,
+                angle: angle,
+                anchor: onRightSide ? 'start' : 'end',
+                xOffset: ticX,
+                yOffset: ticY,
+                textWidth: textWidth,
+                textHeight: fontHeight,
+                rect: rect,
+                graphicsElement: null
+            };
+        }
+
         private createEquallySpacedLabels(): TachometerAxisLabel[] {
             var axisLabels: TachometerAxisLabel[] = [];
             var axisData = this.axisData;
-            var dataLabels: TachometerDataLabelsData = this.viewModel.axis.dataLabels;
+            var dataLabels: TachometerDataLabelsData = this.axisData.dataLabels;
 
             var numberOfSteps = (Math.abs(axisData.valueRange) > 1) ? dataLabels.count - 1
                 : 1; //Show only the start and end values
             if (numberOfSteps > 0) {
-
                 var startAngle = axisData.startAngle;
                 var angleStep = axisData.angleRange / numberOfSteps;
+                var fontSizePx = dataLabels.fontSizePx;
+                var textHeight = PixelConverter.fromPointToPixel(dataLabels.fontSize);
+                var lastDisplayValue = '';
+                var lastAxisLabel: TachometerAxisLabel;
 
                 for (var i = 0; i <= numberOfSteps; i++) {
                     var angle = startAngle + (i * angleStep);
                     var value = this.axisScale.invert(angle);
-                    var axisLabel: TachometerAxisLabel = {
-                        displayValue: dataLabels.formatter.format(value),
-                        value: value,
-                        angle: angle
-                    };
-
-                    axisLabels.push(axisLabel);
+                    var currentDisplayValue = dataLabels.formatter.format(value);
+                    if (lastDisplayValue !== currentDisplayValue) //to avoid repeating labels when they become rounded by Display Units
+                    {
+                        var axisLabel = this.createAxisLabel(dataLabels.formatter.format(value), value, fontSizePx, textHeight, angle);
+                        if (this.isWithinBounds(axisLabel.rect)
+                            && (!lastAxisLabel || (lastAxisLabel && !this.isOverlapping(lastAxisLabel.rect, axisLabel.rect)))
+                            && !this.isOverlappingWithCallout(axisLabel.rect)
+                        ) {
+                            axisLabels.push(axisLabel);
+                            lastDisplayValue = currentDisplayValue;
+                            lastAxisLabel = axisLabel;
+                        }
+                    }
                 }
             }
             return axisLabels;
@@ -2168,8 +2565,8 @@ module powerbi.visuals {
 
         private createAxisLabels(): TachometerAxisLabel[] {
 
-            if (this.viewModel.axis.dataLabels.show) {
-                if (this.viewModel.axis.dataLabels.round) {
+            if (this.showAxisLabels) {
+                if (this.axisData.dataLabels.round) {
                     return this.createNiceRoundLabels();
                 }
                 else {
@@ -2191,50 +2588,35 @@ module powerbi.visuals {
 
         private updateAxisLabelText(axis: TachometerAxisData, axisLabels: TachometerAxisLabel[]) {
             this.svg.selectAll(Tachometer.LabelText.selector).remove();
-            if (!axis.dataLabels.show) return;
+            if (!this.showAxisLabels) return;
 
-            //radius of arc where labels will be rendered from
-            var radius = axis.radius + this.gaugeStyle.labels.padding;
             var axisLabels = this.axisLabels;
             var labelColor = axis.dataLabels.labelColor;
-
             var ticCount = axisLabels.length;
             var fontSizePx = axis.dataLabels.fontSizePx;
-            var xOffset = axis.offset.x;
-            var yOffset = axis.offset.y;
 
-            if (this.showLabelText()) {
+            if (this.showAxisLabels) {
                 for (var count = 0; count < ticCount; count++) {
                     var axisLabel: TachometerAxisLabel = axisLabels[count];
 
-                    var tickAngle = axisLabel.angle;
-                    var sinAngle = Math.sin(tickAngle);
-                    var ticX = xOffset + radius * sinAngle;
-                    var ticY = yOffset - radius * Math.cos(tickAngle);
-
-                    var anchor: string;
-                    //Is the target on left side or right side of verticle?
-                    var onRightSide: boolean = sinAngle > 0;
-
-                    anchor = onRightSide ? 'start' : 'end';
-
-                    var text = this.mainGraphicsContext
+                    var text = this.axisLabelsGraphicsContext
                         .append('text')
                         .attr({
-                            'x': ticX,
-                            'y': ticY,
+                            'x': axisLabel.xOffset,
+                            'y': axisLabel.yOffset,
                             'dy': 0,
                             'class': Tachometer.LabelText.class
                         })
                         .style({
                             'fill': labelColor,
-                            'text-anchor': anchor,
+                            'text-anchor': axisLabel.anchor,
                             'font-size': fontSizePx
                         })
                         .text(axisLabel.displayValue)
                         .append('title').text(axisLabel.displayValue);
 
-                    this.truncateTextIfNeeded(text, ticX, onRightSide);
+                    this.truncateTextIfNeeded(text, axisLabel.xOffset, axisLabel.anchor === 'start');
+                    axisLabel.graphicsElement = text;
                 }
             }
         }
@@ -2257,81 +2639,73 @@ module powerbi.visuals {
             };
         }
 
-        private getFormatter(dataLabelSettings: TachometerDataLabelsData, value?: number, ignoreDataType: boolean = false): IValueFormatter {
-            var displayUnits = dataLabelSettings.displayUnits == null ? 0 : dataLabelSettings.displayUnits;
+        private getFormatter(displayUnits: number, precision: number, value?: number, ignoreDataType: boolean = false): IValueFormatter {
+            displayUnits = displayUnits == null ? 0 : displayUnits;
             var realValue = displayUnits === 0 ? value : null;
-            var formatString: string = valueFormatter.getFormatString((ignoreDataType ? null : this.viewModel.metadataColumn), Tachometer.formatStringProp);
-            var precision = dataLabelUtils.getLabelPrecision(dataLabelSettings.precision, formatString);
+            var formatString: string = valueFormatter.getFormatString((ignoreDataType ? null : this.metadataColumn), Tachometer.formatStringProp);
+            var precision = dataLabelUtils.getLabelPrecision(precision, formatString);
             var valueFormatterOptions: ValueFormatterOptions = this.getOptionsForLabelFormatter(displayUnits, formatString, realValue, precision);
             valueFormatterOptions.formatSingleValues = displayUnits > 0 ? false : true;
             return valueFormatter.create(valueFormatterOptions);
-        }
-
-        //Convert all angles to a scale of zero to TwoPI
-        //Angles should be in Radians
-        private convertToTwoPIScale(angle: number): number {
-            var angleInTwoPI: number = angle % Tachometer.TwoPI;
-            if (angleInTwoPI < 0) {
-                angleInTwoPI = angleInTwoPI + Tachometer.TwoPI; // Convert to positive angle
-            }
-            return angleInTwoPI;
-        }
-
-        // Determine whether the targetAngle is in the visinity of baseAngle
-        // Visinity is defined by thresholdAngle. Angles must be in radians
-        private isInVicinity(baseAngle: number, targetAngle: number, thresholdAngle: number): boolean {
-            var base: number = this.convertToTwoPIScale(baseAngle);
-            var target: number = this.convertToTwoPIScale(targetAngle);
-            var threshold: number = Math.abs(this.convertToTwoPIScale(thresholdAngle));
-
-            if (base + threshold > target) {
-                if (base - threshold < target) {
-                    return true;
-                }
-                else if (base + threshold - Tachometer.TwoPI > target) {
-                    //Overflow case
-                    return true;
-                }
-            }
-            return false;
         }
 
         private updateTargetText(viewModel: TachometerViewModel, axisLabels: TachometerAxisLabel[]) {
             var axis = viewModel.axis;
             var target = axis.target;
             var targetValue = target.value;
-            var baseOffserX = axis.offset.x;
-            var baseOffsetY = axis.offset.y;
+            var center = axis.offset;
             var radius = axis.radius;
 
             var targetAngle: number = this.axisScale(targetValue);
-            //Is the target on left side or right side of verticle?
-            var onRightSide: boolean = Math.sin(targetAngle) > 0;
+            var sinAngle = Math.sin(targetAngle);
+            var cosAngle = Math.cos(targetAngle);
 
-            var padding = this.gaugeStyle.labels.padding;
-            var anchor = onRightSide ? 'start' : 'end';
-            var formatter = this.getFormatter(axis.dataLabels, targetValue);
+            var targetDetails: TargetDetails = {
+                tipX: center.x + radius * sinAngle,
+                tipY: center.y - radius * cosAngle,
+                centerX: center.x,
+                centerY: center.y,
+                defaultTextAnchorX: center.x + axis.axisLabelRadius * sinAngle,
+                defaultTextAnchorY: center.y - axis.axisLabelRadius * cosAngle,
+                gaugeRadius: radius,
+                labelRadius: axis.axisLabelRadius,
+                onRightSide: sinAngle > 0,
+                onTopHalf: cosAngle > 0,
+                targetAngle: targetAngle
+            };
 
-            var deltaAngle = Math.asin(Tachometer.MinDistanceFromTicks / radius) * (target.fontSize / dataLabelUtils.minLabelFontSize);
+            var targetRectangle = this.targetRectangle = this.getTargetRectangle(axis, axisLabels, targetDetails);
+            var anchor: string;
+            var anchorOffset: Offset = { x: 0, y: 0 };
+            var connecterAnchor: Offset = { x: 0, y: 0 };
 
-            var altTargetAngle = targetAngle;
-            var tickCount = axisLabels.length;
-
-            for (var count = 0; count < tickCount; count++) {
-                var axisLabel: TachometerAxisLabel = axisLabels[count];
-                if (this.isInVicinity(axisLabel.angle, targetAngle, deltaAngle)) {
-                    var tickAngle = axisLabel.angle;
-                    if (tickAngle > targetAngle) {
-                        altTargetAngle = axisLabel.angle - deltaAngle;
-                    }
-                    else {
-                        altTargetAngle = axisLabel.angle + deltaAngle;
-                    }
-                    break;
-                }
+            if (targetRectangle == null) { //unable to place target
+                this.showTargetLabel = false;
             }
-            var targetX = baseOffserX + (radius + padding) * Math.sin(altTargetAngle);
-            var targetY = baseOffsetY - (radius + padding) * Math.cos(altTargetAngle);
+            else {
+                if (targetDetails.onRightSide) {
+                    anchor = 'start';
+                    anchorOffset.x = targetRectangle.left;
+                }
+                else {
+                    anchor = 'end';
+                    anchorOffset.x = targetRectangle.right;
+                }
+
+                anchorOffset.y = targetRectangle.bottom;
+                //get nearest x between left, middle and right
+                var targetCenterX = (targetRectangle.left + targetRectangle.right) / 2;
+                var closestEdgeX = Math.abs(targetDetails.tipX - targetRectangle.left) > Math.abs(targetDetails.tipX - targetRectangle.right)
+                    ? targetRectangle.right : targetRectangle.left;
+                connecterAnchor.x = Math.abs(targetDetails.tipX - closestEdgeX) > Math.abs(targetDetails.tipX - targetCenterX) ? targetCenterX : closestEdgeX;
+
+                //get the nearest y between top, bottom and middle
+                var targetCenterY = (targetRectangle.top + targetRectangle.bottom) / 2;
+                var closestEdgeY = Math.abs(targetDetails.tipY - targetRectangle.top) > Math.abs(targetDetails.tipY - targetRectangle.bottom)
+                    ? targetRectangle.bottom
+                    : targetRectangle.bottom - target.fontSize; // Settled for bottom - font size by experimentation
+                connecterAnchor.y = Math.abs(targetDetails.tipY - closestEdgeY) > Math.abs(targetDetails.tipY - targetCenterY) ? targetCenterY : closestEdgeY;
+            }
 
             if (!this.targetText) {
                 this.targetText = this.mainGraphicsContext
@@ -2341,8 +2715,8 @@ module powerbi.visuals {
 
             this.targetText
                 .attr({
-                    'x': targetX,
-                    'y': targetY,
+                    'x': anchorOffset.x,
+                    'y': anchorOffset.y,
                 })
                 .style({
                     'fill': target.textColor,
@@ -2350,126 +2724,588 @@ module powerbi.visuals {
                     'display': this.showTargetLabel ? '' : 'none',
                     'font-size': target.fontSizePx
                 })
-                .text(formatter.format(targetValue));
+                .text(target.formattedValue);
 
-            this.truncateTextIfNeeded(this.targetText, targetX, onRightSide);
-            this.targetText.call(tooltipUtils.tooltipUpdate, [formatter.format(targetValue)]);
-
-            if (!this.targetConnector && this.showTargetLabel) {
-                this.targetConnector = this.mainGraphicsContext
-                    .append('line')
-                    .classed(Tachometer.TargetConnector.class, true);
-            }
+            this.truncateTextIfNeeded(this.targetText, anchorOffset.x, targetDetails.onRightSide);
+            this.targetText.call(tooltipUtils.tooltipUpdate, [target.formattedValue]);
 
             // Hide the target connector if the text is going to align with the target line in the arc
             // It should only be shown if the target text is displaced (ex. when the target is very close to start/end)
-            if (targetAngle === altTargetAngle) {
-                this.targetConnector.style('display', 'none');
+            if (this.showTargetLabel) {
+                if (!this.targetConnector) {
+                    this.targetConnector = this.mainGraphicsContext
+                        .append('line')
+                        .classed(Tachometer.TargetConnector.class, true);
+                }
+
+                var targetConnectorX = connecterAnchor.x - targetDetails.tipX;
+                var targetConnectorY = connecterAnchor.y - targetDetails.tipY;
+
+                var targetConnectorLength = Math.sqrt(targetConnectorX * targetConnectorX + targetConnectorY * targetConnectorY);
+                if (targetConnectorLength - this.gaugeStyle.labels.padding < 1) {
+                    this.targetConnector.style('display', 'none');
+                }
+                else {
+                    this.targetConnector
+                        .attr({
+                            'x1': targetDetails.tipX,
+                            'y1': targetDetails.tipY,
+                            'x2': connecterAnchor.x,
+                            'y2': connecterAnchor.y
+                        })
+                        .style({
+                            'stroke-width': target.thickness,
+                            'stroke': target.lineColor,
+                            'opacity': 0.1,
+                            'fill-opacity': 0,
+                            'display': ''
+                        });
+                }
             }
-            else {
-                this.targetConnector
-                    .attr({
-                        'x1': baseOffserX + radius * Math.sin(targetAngle),
-                        'y1': baseOffsetY - radius * Math.cos(targetAngle),
-                        'x2': targetX,
-                        'y2': targetY
-                    })
-                    .style({
-                        'stroke-width': target.thickness,
-                        'stroke': target.lineColor,
-                        'display': ''
-                    });
+            else if (this.targetConnector != null) {
+                this.targetConnector.style('display', 'none');
             }
         }
 
-        private static PiBy4 = Math.PI / 4;
-        private static ThreePiBy4 = Math.PI * 3 / 4;
-        private static MinusPiBy4 = - Math.PI / 4;
-        private static MinusThreePiBy4 = - Math.PI * 3 / 4;
+        //Get the rectangle area where target value can be placed
+        private getTargetRectangle(axis: TachometerAxisData, axisLabels: TachometerAxisLabel[], targetDetails: TargetDetails): TachometerRectangle {
+            var target = axis.target;
+            var targetValue = target.value;
 
-        private defineMargins(): IMargin {
-            if (this.tachometerSmallViewPortProperties) {
-                if (this.tachometerSmallViewPortProperties.smallTachometerMarginsOnSmallViewPort && (this.currentViewport.height < this.tachometerSmallViewPortProperties.MinHeightTachometerSideNumbersVisible)) {
-                    var margins = this.tachometerSmallViewPortProperties.TachometerMarginsOnSmallViewPort;
-                    var margin = { top: margins, bottom: margins, left: margins, right: margins };
-                    return margin;
+            //Is the target on left side or right side of verticle?
+            var targetTextWidth = target.textWidth;
+            var targetTextHeight = target.textHeight;
+            var targetPlaced: boolean = false;
+            var targetRect: TachometerRectangle = {
+                left: targetDetails.onRightSide ? targetDetails.defaultTextAnchorX : targetDetails.defaultTextAnchorX - targetTextWidth, //make sure that aways x1 < x2 and y1 < y2 for simplified processing
+                top: targetDetails.onTopHalf ? targetDetails.defaultTextAnchorY - targetTextHeight : targetDetails.defaultTextAnchorY,
+                right: targetDetails.onRightSide ? targetDetails.defaultTextAnchorX + target.textWidth : targetDetails.defaultTextAnchorX,
+                bottom: targetDetails.onTopHalf ? targetDetails.defaultTextAnchorY : targetDetails.defaultTextAnchorY + target.textHeight
+            };
+            var tickCount = axisLabels.length;
+            if (tickCount > 0) {
+                //1. identify where the target label will be located
+                // a linear search is fine because the number of axis labels are limited to a handful in the most common scenario
+                var i = 0;
+                for (var j = i + 1; j < tickCount; i++ , j++) {
+                    if (this.isBetween(targetValue, axisLabels[i].value, axisLabels[j].value)) {
+                        //2. Check if the target label can be placed between adjascent axis labels without overlapping
+                        targetRect = this.placeTargetBetweenLabels(axisLabels[i].rect, axisLabels[j].rect, targetRect, targetDetails);
+                        targetPlaced = true;
+                        break; //match found
+                    }
+                }
+                if (!targetPlaced) {
+                    var startIndex;
+                    var endIndex;
+                    if (axis.directionClockwise) {
+                        startIndex = 0;
+                        endIndex = tickCount - 1;
+                    }
+                    else {
+                        startIndex = tickCount - 1;
+                        endIndex = 0;
+                    }
+                    if (this.isBetween(targetValue, axis.startValue, axisLabels[startIndex].value)) {
+                        //target Value is between startValue and the first Axis Label
+                        targetRect = this.placeTargetBeforeFirstLabel(axisLabels[startIndex].rect, targetRect, targetDetails);
+                    }
+                    else if (this.isBetween(targetValue, axisLabels[endIndex].value, axis.endValue)) {
+                        //target Value is between last Axis Label and endValue
+                        targetRect = this.placeTargetAfterLastLabel(axisLabels[endIndex].rect, targetRect, targetDetails);
+                    }
                 }
             }
 
-            var margin = {
-                top: Tachometer.DefaultMarginSettings.top,
-                bottom: Tachometer.DefaultMarginSettings.bottom,
-                left: Tachometer.DefaultMarginSettings.left,
-                right: Tachometer.DefaultMarginSettings.right
-            };
+            return this.isWithinBounds(targetRect) && !this.isOverlappingWithCallout(targetRect) ? targetRect : null;
+        }
 
-            var targetMargin = {
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
-            };
+        //get a rectangle 1px wide and 1px tall along gauge axis at the given angle
+        private getUnitRectangle(angle: number): TachometerRectangle {
+            var axisData = this.axisData;
+            var axisStartX = axisData.offset.x + axisData.radius * Math.sin(angle);
+            var axisStartY = axisData.offset.y - axisData.radius * Math.cos(angle);
 
-            var labelMargin = {
-                top: 0,
-                bottom: 0,
-                left: 0,
-                right: 0,
+            return {
+                left: axisStartX,
+                top: axisStartY,
+                right: axisStartX + 1,
+                bottom: axisStartY + 1
             };
+        }
 
-            // If we're not labels, reduce the margin so that the tachometer has more room to display
-            if (!this.showLabelText() && (!this.showTargetLabel)) {
-                margin.left = margin.right = Tachometer.ReducedLeftRightMargin;
+        private copyRectangle(rectangle: TachometerRectangle): TachometerRectangle {
+            return {
+                top: rectangle.top,
+                bottom: rectangle.bottom,
+                left: rectangle.left,
+                right: rectangle.right
+            };
+        }
+
+        //Attempt to move the target rectangle close to gauge dial when placed too far by the methods translateYFromGaugeAxis and translateXFromGaugeAxis
+        private moveTargetCloserToGaugeStart(target: TachometerRectangle, startPoint: TachometerRectangle, endPoint: TachometerRectangle): TachometerRectangle {
+            var altTarget: TachometerRectangle;
+
+            switch (this.axisData.startQuadrant) {
+                case 1:
+                    return target;
+                case 2:
+                    if (target.left > startPoint.right) {
+                        altTarget = this.copyRectangle(target);
+                        var requiredWidth = altTarget.right - altTarget.left;
+                        altTarget.left = startPoint.right + this.gaugeStyle.target.padding;
+                        altTarget.right = altTarget.left + requiredWidth;
+                    }
+                    break;
+                case 3:
+                    return target;
+                case 4:
+                    if (target.right < startPoint.left) {
+                        altTarget = this.copyRectangle(target);
+                        var requiredWidth = altTarget.right - altTarget.left;
+                        altTarget.right = startPoint.left - this.gaugeStyle.target.padding;
+                        altTarget.left = altTarget.right - requiredWidth;
+                    }
+                    break;
+            }
+
+            if (altTarget != null) {
+                if (this.isOverlapping(altTarget, endPoint)) {
+                    return target; //can't move Target
+                }
+                else {
+                    //gaurantee that we do not overlap new target with any axis label
+                    var tickCount = this.axisLabels.length;
+                    for (var i = 0; i < tickCount; i++) {
+                        if (this.isOverlapping(altTarget, this.axisLabels[i].rect)) {
+                            return target;
+                        }
+                    }
+                    //reaching here means that we can move the target closer to the axis
+                    return altTarget;
+                }
+            }
+            return target;
+        }
+
+        //Attempt to move the target rectangle close to gauge dial when placed too far by the methods translateYFromGaugeAxis and translateXFromGaugeAxis
+        private moveTargetCloserToGaugeEnd(target: TachometerRectangle, startPoint: TachometerRectangle, endPoint: TachometerRectangle): TachometerRectangle {
+            var altTarget: TachometerRectangle;
+
+            switch (this.axisData.endQuadrant) {
+                case 1:
+                    if (target.left > endPoint.right) {
+                        altTarget = this.copyRectangle(target);
+                        var requiredWidth = altTarget.right - altTarget.left;
+                        altTarget.left = endPoint.right + this.gaugeStyle.target.padding;
+                        altTarget.right = altTarget.left + requiredWidth;
+                    }
+                    break;
+                case 2:
+                    return target;
+                case 3:
+                    if (target.right < endPoint.left) {
+                        altTarget = this.copyRectangle(target);
+                        var requiredWidth = altTarget.right - altTarget.left;
+                        altTarget.right = endPoint.left - this.gaugeStyle.target.padding;
+                        altTarget.left = altTarget.right - requiredWidth;
+                    }
+                    break;
+                case 4:
+                    return target;
+            }
+
+            if (altTarget != null) {
+                if (this.isOverlapping(altTarget, startPoint)) {
+                    return target; //can't move Target
+                }
+                else {
+                    //gaurantee that we do not overlap new target with any axis label
+                    var tickCount = this.axisLabels.length;
+                    for (var i = 0; i < tickCount; i++) {
+                        if (this.isOverlapping(altTarget, this.axisLabels[i].rect)) {
+                            return target;
+                        }
+                    }
+                    //reaching here means that we can move the target closer to the axis
+                    return altTarget;
+                }
+            }
+            return target;
+        }
+
+        private placeTargetBeforeFirstLabel(labelRectangle: TachometerRectangle, targetRect: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            // There may be room between the first label and start of the dial
+            //Create a rectangle of 1 pixel width at the start of the dial and use it along with the last label to place the target
+            var axisData = this.axisData;
+            var startRectOnAxis: TachometerRectangle = this.getUnitRectangle(axisData.startAngle);
+            var endRectOnAxis: TachometerRectangle = this.getUnitRectangle(axisData.endAngle);
+
+            var targetRectangle;
+            if (axisData.directionClockwise) {
+                targetRectangle = this.placeTargetBetweenLabels(startRectOnAxis, labelRectangle, targetRect, targetDetails);
             }
             else {
-                var axisData = this.axisData;
-                var dataLabels: TachometerDataLabelsData = this.viewModel && this.viewModel.axis ? this.viewModel.axis.dataLabels : null;
+                targetRectangle = this.placeTargetBetweenLabels(labelRectangle, startRectOnAxis, targetRect, targetDetails);
+            }
+            if (targetRectangle != null) {
+                return this.moveTargetCloserToGaugeStart(targetRectangle, startRectOnAxis, endRectOnAxis);
+            }
+            return null;
+        }
 
-                if (this.showTargetLabel) {
-                    var targetFontSize = PixelConverter.fromPointToPixel(axisData.target.fontSize - NewDataLabelUtils.DefaultLabelFontSizeInPt);
-                    if (targetFontSize > 0) {
-                        var targetFontLength = dataLabels.formatter.format(axisData.target.value).length / 2;
+        private placeTargetAfterLastLabel(labelRectangle: TachometerRectangle, targetRect: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            // There may be room between the last label and end of the dial
+            //Create a rectangle of 1 pixel width at the end of the dial and use it along with the last label to place the target
+            var axisData = this.axisData;
+            var startRectOnAxis: TachometerRectangle = this.getUnitRectangle(axisData.startAngle);
+            var endRectOnAxis: TachometerRectangle = this.getUnitRectangle(axisData.endAngle);
 
-                        // If we're showing the target label, only reduce the margin on the side that doesn't have a target label
-                        var targetAngle = this.axisScale(axisData.target.value);
+            var targetRectangle;
+            if (axisData.directionClockwise) {
+                targetRectangle = this.placeTargetBetweenLabels(labelRectangle, endRectOnAxis, targetRect, targetDetails);
+            }
+            else {
+                targetRectangle = this.placeTargetBetweenLabels(endRectOnAxis, labelRectangle, targetRect, targetDetails);
+            }
 
-                        if (targetAngle >= Tachometer.MinusPiBy4 && targetAngle < Tachometer.PiBy4) { //closer to top
-                            targetMargin.top = margin.top + targetFontSize;
-                            targetMargin.left = targetMargin.right = Tachometer.ReducedLeftRightMargin;
+            if (targetRectangle != null) {
+                return this.moveTargetCloserToGaugeEnd(targetRectangle, startRectOnAxis, endRectOnAxis);
+            }
+            return null;
+        }
+
+        private moveTargetAwayFromLabel(overlappingLabel: TachometerRectangle, nextLabel: TachometerRectangle, targetRect: TachometerRectangle, targetDetails: TargetDetails, moveTargetClockwise: boolean): TachometerRectangle {
+            var newTargetRect: TachometerRectangle = null;
+            var absSinTargetAngle = Math.abs(Math.sin(targetDetails.targetAngle));
+
+            if (absSinTargetAngle < Tachometer.PreferHorizontalThreshold) { //closer to the vertical top or bottom of the circle
+                newTargetRect = this.getHorizontalRoomBetweenLabels(overlappingLabel, nextLabel, targetRect, targetDetails);
+                if (newTargetRect == null) {
+                    newTargetRect = this.getVerticalRoomBetweenLabels(overlappingLabel, nextLabel, targetRect, targetDetails, moveTargetClockwise);
+                }
+            }
+            else {
+                //1. check whether we have room between the two labels to accomodate the target
+                newTargetRect = this.getVerticalRoomBetweenLabels(overlappingLabel, nextLabel, targetRect, targetDetails, moveTargetClockwise);
+                if (newTargetRect == null) {
+                    newTargetRect = this.getHorizontalRoomBetweenLabels(overlappingLabel, nextLabel, targetRect, targetDetails);
+                }
+            }
+            if (newTargetRect == null) {
+                newTargetRect = this.getPlacementBetweenLabels(overlappingLabel, nextLabel, targetRect, targetDetails);
+            }
+            return newTargetRect;
+        }
+
+        private placeTargetBetweenLabels(firstRect: TachometerRectangle, secondRect: TachometerRectangle, targetRect: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            var moveTargetClockwise = this.axisData.directionClockwise;
+            var overlappingRect = null;
+            var nextRect = null;
+            if (this.isOverlapping(targetRect, firstRect)) {
+                overlappingRect = firstRect;
+                nextRect = secondRect;
+            }
+            else if (this.isOverlapping(targetRect, secondRect)) {
+                overlappingRect = secondRect;
+                nextRect = firstRect;
+                moveTargetClockwise = !moveTargetClockwise;
+            }
+            else {
+                return targetRect;
+            }
+            return this.moveTargetAwayFromLabel(overlappingRect, nextRect, targetRect, targetDetails, moveTargetClockwise);
+        }
+
+        private getPlacementBetweenLabels(overlappingRect: TachometerRectangle, nextRect: TachometerRectangle, targetRectangle: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            var onRightSide: boolean = targetRectangle.left >= targetDetails.centerX;
+            var onBottom: boolean = targetRectangle.bottom >= targetDetails.centerY;
+            var requiredHeight = targetRectangle.bottom - targetRectangle.top;
+            var requiredWidth = targetRectangle.right - targetRectangle.left;
+            var targetBottom = 0;
+            var targetLeft = 0;
+
+            if (onBottom) {
+                targetBottom = Math.min(overlappingRect.bottom, nextRect.bottom) + requiredHeight + this.gaugeStyle.target.padding;
+            }
+            else {
+                targetBottom = Math.max(overlappingRect.top, nextRect.top) - this.gaugeStyle.target.padding;
+            }
+            if (onRightSide) {
+                targetLeft = Math.min(overlappingRect.right, nextRect.right) + this.gaugeStyle.target.padding;
+            }
+            else {
+                targetLeft = Math.max(overlappingRect.left, nextRect.left) - this.gaugeStyle.target.padding - requiredWidth;
+            }
+
+            targetRectangle.left = targetLeft;
+            targetRectangle.right = targetLeft + requiredWidth;
+            targetRectangle.top = targetBottom - requiredHeight;
+            targetRectangle.bottom = targetBottom;
+            targetRectangle = this.translateXFromGaugeAxis(targetRectangle, targetDetails);
+            targetRectangle = this.translateYFromGaugeAxis(targetRectangle, targetDetails);
+
+            if (this.isOverlapping(targetRectangle, overlappingRect) || this.isOverlapping(targetRectangle, nextRect) || this.isOverlappingWithCallout(targetRectangle)) {
+                //Note, this part is switched
+                if (onRightSide) {
+                    targetLeft = Math.max(overlappingRect.left, nextRect.left) - this.gaugeStyle.target.padding - requiredWidth;
+                }
+                else {
+                    targetLeft = Math.min(overlappingRect.right, nextRect.right) + this.gaugeStyle.target.padding;
+                }
+                targetRectangle.left = targetLeft;
+                targetRectangle.right = targetLeft + requiredWidth;
+                //When we switch above logic, there is potential of overlapping with gauge
+                targetRectangle = this.translateXFromGaugeAxis(targetRectangle, targetDetails);
+                targetRectangle = this.translateYFromGaugeAxis(targetRectangle, targetDetails);
+                if (this.isOverlapping(targetRectangle, overlappingRect) || this.isOverlapping(targetRectangle, nextRect) || this.isOverlappingWithCallout(targetRectangle)) {
+                    //now try to go far left or far right as possible
+                    if (onRightSide) {
+                        targetLeft = Math.max(overlappingRect.right, nextRect.right) + this.gaugeStyle.target.padding;
+                    }
+                    else {
+                        targetLeft = Math.min(overlappingRect.left, nextRect.left) - this.gaugeStyle.target.padding - requiredWidth;
+                    }
+                    targetRectangle.left = targetLeft;
+                    targetRectangle.right = targetLeft + requiredWidth;
+                    //When we switch above logic, there is potential of overlapping with gauge
+                    targetRectangle = this.translateXFromGaugeAxis(targetRectangle, targetDetails);
+                    targetRectangle = this.translateYFromGaugeAxis(targetRectangle, targetDetails);
+                    if (this.isOverlapping(targetRectangle, overlappingRect) || this.isOverlapping(targetRectangle, nextRect) || this.isOverlappingWithCallout(targetRectangle)) {
+                        return null;
+                    }
+                }
+            }
+            return targetRectangle;
+        }
+
+        private isBetween(value: number, startValue: number, endValue: number): Boolean {
+            return (
+                (value > startValue && value <= endValue)
+                || (value < startValue && value >= endValue) // for reversed values
+            )
+                ;
+        }
+
+        //if there is room return valid rectangle, otherwise return null
+        private getHorizontalRoomBetweenLabels(rectangle1: TachometerRectangle, rectangle2: TachometerRectangle, targetRectangle: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            var requiredRoom = targetRectangle.right - targetRectangle.left;
+            var roomBetweenLabels = 0;
+
+            var rectangle1OnTopHalf = rectangle1.bottom < targetDetails.centerY;
+            var rectangle1OnLeftHalf = rectangle1.left < targetDetails.centerX;
+            var rectangle2OnTopHalf = rectangle2.bottom < targetDetails.centerY;
+            var rectangle2OnLeftHalf = rectangle2.left < targetDetails.centerX;
+
+            if ((rectangle1OnTopHalf !== rectangle2OnTopHalf) || (rectangle1OnLeftHalf === rectangle2OnLeftHalf)) {
+                //to move horizontally, the two rectangles should be on the top or bottom and across the vertical axis
+                return null;
+            }
+
+            var baseX = 0;
+            if (rectangle1.left < rectangle2.left) {
+                roomBetweenLabels = rectangle2.left - rectangle1.right;
+                baseX = rectangle1.right;
+            }
+            else {
+                roomBetweenLabels = rectangle1.left - rectangle2.right;
+                baseX = rectangle2.right;
+            }
+
+            if (roomBetweenLabels > requiredRoom) {
+                //has room between the two labels to fit the target
+                baseX = baseX + ((roomBetweenLabels - requiredRoom) / 2); //center between labels
+                targetRectangle.left = baseX;
+                targetRectangle.right = baseX + requiredRoom;
+                //move X to gaurantee that target text does not overlap the gauge dial
+                targetRectangle = this.translateYFromGaugeAxis(targetRectangle, targetDetails);
+                if (this.isOverlapping(targetRectangle, rectangle1) || this.isOverlapping(targetRectangle, rectangle2) || this.isOverlappingWithCallout(targetRectangle)) {
+                    return null;
+                }
+                return targetRectangle;
+            }
+            return null;
+        }
+
+        //if there is room return valid rectangle, otherwise return null
+        //move the target towards the next rectangle along the gauge axis clockwise or counter clockwise as indicated
+        private getVerticalRoomBetweenLabels(overlappingRectangle: TachometerRectangle, nextRectangle: TachometerRectangle, targetRectangle: TachometerRectangle, targetDetails: TargetDetails, targetMoveDirection: boolean): TachometerRectangle {
+            var requiredRoom = targetRectangle.bottom - targetRectangle.top;
+            var targetTop = 0;
+            if ((targetDetails.onRightSide && targetMoveDirection)
+                || (!targetDetails.onRightSide && !targetMoveDirection)
+            ) {//means that we have to move target down
+                targetTop = overlappingRectangle.bottom + this.gaugeStyle.target.padding;
+            }
+            else {//means that we have to move the target up
+                targetTop = overlappingRectangle.top - requiredRoom - this.gaugeStyle.target.padding;
+            }
+
+            var newTargetRectangle: TachometerRectangle = {
+                left: targetRectangle.left,
+                top: targetTop,
+                right: targetRectangle.right,
+                bottom: targetTop + requiredRoom
+            };
+            //move X to gaurantee that target text does not overlap the gauge dial
+            newTargetRectangle = this.translateXFromGaugeAxis(newTargetRectangle, targetDetails);
+
+            if (newTargetRectangle != null && !this.isOverlapping(newTargetRectangle, nextRectangle) && !this.isOverlappingWithCallout(newTargetRectangle)) {
+                return newTargetRectangle;
+            }
+
+            return null;
+        }
+
+        //move along X axis to avoid overlap
+        private translateXFromGaugeAxis(rectangle: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            if (rectangle == null) {
+                return null;//going out of range
+            }
+            var targetLeftOnGaugeRight: boolean = rectangle.left >= targetDetails.centerX;
+            var targetRightOnGaugeRight: boolean = rectangle.right >= targetDetails.centerX;
+            var targetTopOnGaugeTop: boolean = rectangle.top <= targetDetails.centerY;
+            var targetBottomOnGageBottom: boolean = rectangle.bottom <= targetDetails.centerY;
+            var requiredWidth = rectangle.right - rectangle.left;
+
+            var gaugePivotY = 0;
+            var gaugePivotXLimit;
+            if (targetTopOnGaugeTop === targetBottomOnGageBottom) { //both on tophalf or bottom half
+                gaugePivotY = targetTopOnGaugeTop ? targetDetails.centerY - rectangle.bottom : rectangle.top - targetDetails.centerY;
+
+                gaugePivotXLimit = targetDetails.labelRadius * Math.sin(Math.acos(gaugePivotY / targetDetails.labelRadius));
+
+                if (!isNaN(gaugePivotXLimit)) { //this means that y is already outside the circle
+                    if (targetLeftOnGaugeRight && targetRightOnGaugeRight) {//bot on right
+                        gaugePivotXLimit = targetDetails.centerX + gaugePivotXLimit;
+                        if (gaugePivotXLimit > rectangle.left) { //potential overlap with gauge
+                            rectangle.left = gaugePivotXLimit;
+                            rectangle.right = gaugePivotXLimit + requiredWidth;
                         }
-                        else if (targetAngle >= Tachometer.PiBy4 && targetAngle < Tachometer.ThreePiBy4) {//closer to right
-                            targetMargin.right = margin.right + targetFontSize * targetFontLength;
-                        }
-                        else if (targetAngle >= Tachometer.MinusThreePiBy4 && targetAngle < Tachometer.MinusPiBy4) {//closer to left
-                            targetMargin.left = margin.left + targetFontSize * targetFontLength;
-                        }
-                        else {//closer to bottom
-                            targetMargin.bottom = margin.bottom + targetFontSize;
-                            targetMargin.left = targetMargin.right = Tachometer.ReducedLeftRightMargin;
+                    }
+                    else if (!targetLeftOnGaugeRight && !targetRightOnGaugeRight) { //both on left
+                        gaugePivotXLimit = targetDetails.centerX - gaugePivotXLimit;
+                        if (gaugePivotXLimit < rectangle.right) {//potential overlap with gauge
+                            rectangle.right = gaugePivotXLimit;
+                            rectangle.left = gaugePivotXLimit - requiredWidth;
                         }
                     }
                 }
-
-                var labelFontSize = 0;
-                var labelFontLength = 0;
-                if (dataLabels && dataLabels.show
-                    && dataLabels.fontSize
-                    && dataLabels.fontSize >= NewDataLabelUtils.DefaultLabelFontSizeInPt) {
-                    labelFontSize = PixelConverter.fromPointToPixel(dataLabels.fontSize - NewDataLabelUtils.DefaultLabelFontSizeInPt);
-                    labelFontLength = Math.max(dataLabels.formatter.format(this.axisData.startValue).length, dataLabels.formatter.format(this.axisData.endValue).length) / 2;
-                }
-
-                labelMargin.top = margin.top + labelFontSize;
-                labelMargin.bottom = margin.bottom + labelFontSize;
-                labelMargin.left = margin.left + labelFontSize * labelFontLength;
-                labelMargin.right = margin.right + labelFontSize * labelFontLength;
-
-                margin.top = labelMargin.top > targetMargin.top ? labelMargin.top : targetMargin.top;
-                margin.bottom = labelMargin.bottom > targetMargin.bottom ? labelMargin.bottom : targetMargin.bottom;
-                margin.left = labelMargin.left > targetMargin.left ? labelMargin.left : targetMargin.left;
-                margin.right = labelMargin.right > targetMargin.right ? labelMargin.right : targetMargin.right;
             }
-            return margin;
+            else {
+                if (targetLeftOnGaugeRight) {
+                    gaugePivotXLimit = targetDetails.centerX + targetDetails.labelRadius;
+                    if (rectangle.left < gaugePivotXLimit) {
+                        rectangle.left = gaugePivotXLimit;
+                        rectangle.right = gaugePivotXLimit + requiredWidth;
+                    }
+                }
+                else {
+                    gaugePivotXLimit = targetDetails.centerX - targetDetails.labelRadius;
+                    if (rectangle.right > gaugePivotXLimit) {
+                        rectangle.right = gaugePivotXLimit;
+                        rectangle.left = gaugePivotXLimit - requiredWidth;
+                    }
+                }
+            }
+
+            return this.isWithinBounds(rectangle) ? rectangle : null;
+        }
+
+        //move along Y axis to avoid overlap
+        private translateYFromGaugeAxis(rectangle: TachometerRectangle, targetDetails: TargetDetails): TachometerRectangle {
+            if (rectangle == null) {
+                return null;
+            }
+
+            var targetLeftOnGaugeRight: boolean = rectangle.left >= targetDetails.centerX;
+            var targetRightOnGaugeRight: boolean = rectangle.right >= targetDetails.centerX;
+            var targetTopOnGaugeTop: boolean = rectangle.top <= targetDetails.centerY;
+            var requiredHeight = rectangle.bottom - rectangle.top;
+
+            if (targetLeftOnGaugeRight === targetRightOnGaugeRight) { //both on right or left
+                //minimun distance required from gauge center along Y axis to avoid overlap
+                var gaugePivotX = targetRightOnGaugeRight ? Math.abs(rectangle.left - targetDetails.centerX) : Math.abs(targetDetails.centerX - rectangle.right);
+                var gaugePivotYLimit = targetDetails.labelRadius * Math.cos(Math.asin(gaugePivotX / targetDetails.labelRadius));
+                if (!isNaN(gaugePivotYLimit)) {
+                    //means that x is already ourside of the circle so no need to change Y
+                    if (targetTopOnGaugeTop) {
+                        gaugePivotYLimit = targetDetails.centerY - gaugePivotYLimit;
+                        if (gaugePivotYLimit < rectangle.bottom) { //potential overlap with gauge
+                            rectangle.top = gaugePivotYLimit - requiredHeight;
+                            rectangle.bottom = gaugePivotYLimit;
+                        }
+                    }
+                    else {
+                        gaugePivotYLimit = targetDetails.centerY + gaugePivotYLimit;
+                        if (gaugePivotYLimit > rectangle.top) { //potential overlap with gauge
+                            rectangle.top = gaugePivotYLimit;
+                            rectangle.bottom = gaugePivotYLimit + requiredHeight;
+                        }
+                    }
+                }
+            }
+            else { //target spanning left to right of the center
+                if (targetTopOnGaugeTop) { //upper hemisphere
+                    gaugePivotYLimit = targetDetails.centerY - targetDetails.labelRadius;
+                    if (rectangle.bottom > gaugePivotYLimit) {
+                        rectangle.top = gaugePivotYLimit - requiredHeight;
+                        rectangle.bottom = gaugePivotYLimit;
+                    }
+                }
+                else {
+                    gaugePivotYLimit = targetDetails.centerY + targetDetails.labelRadius;
+                    if (rectangle.top < gaugePivotYLimit) {
+                        rectangle.top = gaugePivotYLimit;
+                        rectangle.bottom = gaugePivotYLimit + requiredHeight;
+                    }
+                }
+            }
+            return this.isWithinBounds(rectangle) ? rectangle : null;
+        }
+
+        private getZeroMargin(): IMargin {
+            return { top: 0, bottom: 0, left: 0, right: 0 };
+        }
+
+        private defineMargins(axisData: TachometerAxisData): Margins {
+            if (this.tachometerSmallViewPortProperties) {
+                if (this.tachometerSmallViewPortProperties.smallTachometerMarginsOnSmallViewPort && (this.currentViewport.height < this.tachometerSmallViewPortProperties.MinHeightTachometerSideNumbersVisible)) {
+                    var smallMargin = this.tachometerSmallViewPortProperties.TachometerMarginsOnSmallViewPort;
+                    var margins: Margins = {
+                        mainMargin: { top: smallMargin, bottom: smallMargin, left: smallMargin, right: smallMargin },
+                        labelMargin: this.getZeroMargin(),
+                        targetMargin: this.getZeroMargin()
+                    };
+                    return margins;
+                }
+            }
+
+            var targetMargin: IMargin = this.addPadding(this.getTargetMargin(axisData), this.gaugeStyle.target.padding);
+            var labelMargin: IMargin = this.addPadding(this.getLabelMargins(axisData), this.gaugeStyle.labels.padding);
+
+            var MainMargin = {
+                top: (targetMargin.top + labelMargin.top) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.top ,
+                bottom: (targetMargin.bottom + labelMargin.bottom) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.bottom,
+                left: (targetMargin.left + labelMargin.left) > 0 ? Tachometer.ReducedHorizontalMargin : Tachometer.DefaultMarginSettings.left,
+                right: (targetMargin.right + labelMargin.right) > 0 ? Tachometer.ReducedHorizontalMargin: Tachometer.DefaultMarginSettings.right,
+            };
+
+            return {
+                mainMargin: MainMargin,
+                labelMargin: labelMargin,
+                targetMargin: targetMargin
+            };
+        }
+
+        private addPadding(margin: IMargin, padding:number): IMargin {
+            return {
+                top: margin.top > 0 ? margin.top + padding : 0,
+                bottom: margin.bottom > 0 ? margin.bottom + padding : 0,
+                left: margin.left > 0 ? margin.left + padding : 0,
+                right: margin.right > 0 ? margin.right + padding : 0
+            };
         }
 
         private showLabelText(): boolean {
@@ -2488,7 +3324,7 @@ module powerbi.visuals {
         * Return which quadrant the angle is in
         * Angle can be between negative infinity to positive infinity
         */
-        private getQuadrant(angle: number): number {
+        private static getQuadrant(angle: number): number {
             var quadrant: number;
             if (Math.sin(angle) >= 0) {
                 if (Math.cos(angle) >= 0) {
@@ -2518,27 +3354,27 @@ module powerbi.visuals {
         * 3. startAngle and endAngle canbe negative infinity to positive infinity.
         * 4. startAngle can be larger or smaller or equal to endAngle. 
         */
-        private calculateTranslation(startAngle: number, endAngle: number, height: number, width: number
+        private calculateGaugeTranslation(axisData: TachometerAxisData, startAngle: number, endAngle: number, height: number, width: number
         ): TachometerTranslationSettings {
             var radius: number;
-            var startQuadrant: number = this.getQuadrant(startAngle);
-            var endQuadrant: number = this.getQuadrant(endAngle);
+            var startQuadrant: number = axisData.startQuadrant;
+            var endQuadrant: number = axisData.endQuadrant;
             var xOffset: number; //translation along x axis
             var yOffset: number; //translation along y axis
             var arcHeight: number; //height of the arc along y axis
             var arcWidth: number; //width of the arc along x axis
             var calloutyOffset: number; //Y offset of callout
 
-            var sinAlpha: number = Math.abs(Math.sin(startAngle));
-            var sinBeta: number = Math.abs(Math.sin(endAngle));
-            var cosAlpha: number = Math.abs(Math.cos(startAngle));
-            var cosBeta: number = Math.abs(Math.cos(endAngle));
+            var sinAlpha: number = Math.abs(axisData.sinStartAngle);
+            var sinBeta: number = Math.abs(axisData.sinEndAngle);
+            var cosAlpha: number = Math.abs(axisData.cosStartAngle);
+            var cosBeta: number = Math.abs(axisData.cosEndAngle);
 
             switch (startQuadrant) {
                 case 1:
                     switch (endQuadrant) {
                         case 1:
-                            if (cosAlpha > cosBeta) {
+                            if (cosAlpha > cosBeta) { //start angle < end angle
                                 radius = Math.min(width / sinBeta, height / cosAlpha);
                                 arcHeight = radius * cosAlpha;
                                 arcWidth = radius * sinBeta;
@@ -2595,7 +3431,7 @@ module powerbi.visuals {
                             calloutyOffset = yOffset + radius;
                             break;
                         case 2:
-                            if (cosAlpha < cosBeta) {
+                            if (cosAlpha < cosBeta) {//start angle < end angle
                                 radius = Math.min(width / sinAlpha, height / cosBeta);
                                 arcHeight = radius * cosBeta;
                                 arcWidth = radius * sinAlpha;
@@ -2650,7 +3486,7 @@ module powerbi.visuals {
                             calloutyOffset = yOffset + radius * Math.max(cosAlpha, cosBeta);
                             break;
                         case 3:
-                            if (cosAlpha > cosBeta) {
+                            if (cosAlpha > cosBeta) {//start angle < end angle
                                 radius = Math.min(width / sinBeta, height / cosAlpha);
                                 arcHeight = radius * cosAlpha;
                                 arcWidth = radius * sinBeta;
@@ -2704,19 +3540,19 @@ module powerbi.visuals {
                             calloutyOffset = yOffset + radius;
                             break;
                         case 4:
-                            if (cosAlpha < cosBeta) {
+                            if (cosAlpha < cosBeta) {//start angle < end angle
                                 radius = Math.min(width / sinAlpha, height / cosBeta);
                                 arcHeight = radius * cosBeta;
                                 arcWidth = radius * sinAlpha;
                                 xOffset = width > arcWidth ? (width + arcWidth) / 2 : width;
                                 yOffset = height > arcHeight ? (height + arcHeight) / 2 : height;
-                                calloutyOffset = yOffset + radius;
+                                calloutyOffset = yOffset;
                             }
                             else {
                                 radius = Math.min(width / 2, height / 2);
                                 xOffset = width / 2;
                                 yOffset = height / 2;
-                                calloutyOffset = yOffset;
+                                calloutyOffset = yOffset + radius;
                             }
                             break;
                         default: //this should not be reached
@@ -2737,6 +3573,648 @@ module powerbi.visuals {
                 calloutxOffset: width / 2,
                 calloutyOffset: calloutyOffset
             };
+        }
+
+        private getLabelMargins(axisData: TachometerAxisData): IMargin {
+            var labelMargin = this.getZeroMargin();
+            var dataLabels: TachometerDataLabelsData = axisData ? axisData.dataLabels : null;
+
+            if (dataLabels == null || !this.showAxisLabels) {
+                return labelMargin;
+            }
+            var labelFontSize = dataLabels.textHeight;
+            var labelFontLength = dataLabels.textWidth;
+            var startQuadrant: number = axisData.startQuadrant;
+            var endQuadrant: number = axisData.endQuadrant;
+            var cosAlpha: number = Math.abs(axisData.cosStartAngle);
+            var cosBeta: number = Math.abs(axisData.cosEndAngle);
+            var startAngle: number = axisData.startAngle;
+            var endAngle: number = axisData.endAngle;
+
+            switch (startQuadrant) {
+                case 1:
+                    switch (endQuadrant) {
+                        case 1:
+                            if (cosAlpha > cosBeta) {//start angle < endAngle
+                                if (endAngle > Tachometer.PiBy4) {
+                                    //closer to the right
+                                    labelMargin.right += labelFontLength;
+                                }
+                                else {
+                                    labelMargin.right = Tachometer.UnitMargin;
+                                }
+                                if (startAngle < Tachometer.PiBy4) {
+                                    //closer to the top
+                                    labelMargin.top += labelFontSize;
+                                }
+                                else {
+                                    labelMargin.top = Tachometer.UnitMargin;
+                                }
+                            }
+                            else {
+                                labelMargin.top += labelFontSize;
+                                labelMargin.bottom += labelFontSize;
+                                labelMargin.left += labelFontLength;
+                                labelMargin.right += labelFontLength;
+                            }
+                            break;
+                        case 2:
+                            labelMargin.right += labelFontLength;
+                            if (startAngle < Tachometer.PiBy4) {
+                                //closer to the top
+                                labelMargin.top += labelFontSize;
+                            }
+                            else {
+                                labelMargin.top = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.ThreePiBy4) {
+                                //closer to the bottom
+                                labelMargin.bottom += labelFontSize;
+                            }
+                            else {
+                                labelMargin.bottom = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 3:
+                            labelMargin.right += labelFontLength;
+                            labelMargin.bottom += labelFontSize;
+                            if (startAngle < Tachometer.PiBy4) {
+                                //closer to the top
+                                labelMargin.top += labelFontSize;
+                            }
+                            else {
+                                labelMargin.top = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.MinusThreePiBy4) {
+                                //closer to the left
+                                labelMargin.left += labelFontLength;
+                            }
+                            else {
+                                labelMargin.left = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 4:
+                            labelMargin.right += labelFontLength;
+                            labelMargin.bottom += labelFontSize;
+                            labelMargin.left += labelFontLength;
+                            if ((startAngle < Tachometer.PiBy4) || (endAngle > Tachometer.MinusPiBy4)) {
+                                //closer to the top
+                                labelMargin.top += labelFontSize;
+                            }
+                            else {
+                                labelMargin.top = Tachometer.UnitMargin;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 2:
+                    switch (endQuadrant) {
+                        case 1:
+                            labelMargin.bottom += labelFontSize;
+                            labelMargin.left += labelFontLength;
+                            labelMargin.top += labelFontSize;
+                            if ((startAngle < Tachometer.ThreePiBy4) || (endAngle > Tachometer.PiBy4)) {
+                                //closer to the right
+                                labelMargin.right += labelFontLength;
+                            }
+                            else {
+                                labelMargin.right = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 2:
+                            if (cosAlpha < cosBeta) {//startAngle < endAngle
+                                if (startAngle < Tachometer.ThreePiBy4) {
+                                    //closer to the right
+                                    labelMargin.right += labelFontLength;
+                                }
+                                else {
+                                    labelMargin.right = Tachometer.UnitMargin;
+                                }
+                                if (endAngle > Tachometer.ThreePiBy4) {
+                                    //closer to the bottom
+                                    labelMargin.bottom += labelFontSize;
+                                }
+                                else {
+                                    labelMargin.bottom = Tachometer.UnitMargin;
+                                }
+                            }
+                            else { //startAngle > endAngle
+                                labelMargin.top += labelFontSize;
+                                labelMargin.bottom += labelFontSize;
+                                labelMargin.left += labelFontLength;
+                                labelMargin.right += labelFontLength;
+                            }
+                            break;
+                        case 3:
+                            labelMargin.bottom += labelFontSize;
+                            if (startAngle < Tachometer.ThreePiBy4) {
+                                //closer to the right
+                                labelMargin.right += labelFontLength;
+                            }
+                            else {
+                                labelMargin.right = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.MinusThreePiBy4) {
+                                //closer to the left
+                                labelMargin.left += labelFontLength;
+                            }
+                            else {
+                                labelMargin.left = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 4:
+                            labelMargin.bottom += labelFontSize;
+                            labelMargin.left += labelFontLength;
+                            if (endAngle > Tachometer.MinusPiBy4) {
+                                //closer to the top
+                                labelMargin.top += labelFontSize;
+                            }
+                            else {
+                                labelMargin.top = Tachometer.UnitMargin;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 3:
+                    switch (endQuadrant) {
+                        case 1:
+                            labelMargin.left += labelFontLength;
+                            labelMargin.top += labelFontSize;
+                            if (endAngle > Tachometer.PiBy4) {
+                                //closer to the right
+                                labelMargin.right += labelFontLength;
+                            }
+                            else {
+                                labelMargin.right = Tachometer.UnitMargin;
+                            }
+                            if (startAngle < Tachometer.MinusThreePiBy4) {
+                                //closer to the bottom
+                                labelMargin.bottom += labelFontSize;
+                            }
+                            else {
+                                labelMargin.bottom = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 2:
+                            labelMargin.left += labelFontLength;
+                            labelMargin.top += labelFontSize;
+                            labelMargin.right += labelFontLength;
+                            if ((startAngle < Tachometer.MinusThreePiBy4) || (endAngle > Tachometer.ThreePiBy4)) {
+                                //closer to the bottom
+                                labelMargin.bottom += labelFontSize;
+                            }
+                            else {
+                                labelMargin.bottom = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 3:
+                            if (cosAlpha > cosBeta) { //start angle < end angle
+                                if (startAngle < Tachometer.MinusThreePiBy4) {
+                                    //closer to the bottom
+                                    labelMargin.bottom += labelFontSize;
+                                }
+                                else {
+                                    labelMargin.bottom = Tachometer.UnitMargin;
+                                }
+                                if (endAngle > Tachometer.MinusThreePiBy4) {
+                                    //closer to the left
+                                    labelMargin.left += labelFontLength;
+                                }
+                                else {
+                                    labelMargin.left = Tachometer.UnitMargin;
+                                }
+                            }
+                            else {
+                                labelMargin.top += labelFontSize;
+                                labelMargin.bottom += labelFontSize;
+                                labelMargin.left += labelFontLength;
+                                labelMargin.right += labelFontLength;
+                            }
+                            break;
+                        case 4:
+                            labelMargin.left += labelFontLength;
+                            if (startAngle < Tachometer.MinusThreePiBy4) {
+                                //closer to the bottom
+                                labelMargin.bottom += labelFontSize;
+                            }
+                            else {
+                                labelMargin.bottom = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.MinusPiBy4) {
+                                //closer to the rop
+                                labelMargin.top += labelFontSize;
+                            }
+                            else {
+                                labelMargin.top = Tachometer.UnitMargin;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 4:
+                    switch (endQuadrant) {
+                        case 1:
+                            labelMargin.top += labelFontSize;
+                            if (startAngle < Tachometer.MinusPiBy4) {
+                                //closer to the left
+                                labelMargin.left += labelFontLength;
+                            }
+                            else {
+                                labelMargin.left = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.PiBy4) {
+                                //closer to the right
+                                labelMargin.right += labelFontLength;
+                            }
+                            else {
+                                labelMargin.right = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 2:
+                            labelMargin.top += labelFontSize;
+                            labelMargin.right += labelFontLength;
+                            if (startAngle < Tachometer.MinusPiBy4) {
+                                //closer to the left
+                                labelMargin.left += labelFontLength;
+                            }
+                            else {
+                                labelMargin.left = Tachometer.UnitMargin;
+                            }
+                            if (endAngle > Tachometer.ThreePiBy4) {
+                                //closer to the bottom
+                                labelMargin.bottom += labelFontSize;
+                            }
+                            else {
+                                labelMargin.bottom = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 3:
+                            labelMargin.top += labelFontSize;
+                            labelMargin.right += labelFontLength;
+                            labelMargin.bottom += labelFontSize;
+                            if (startAngle < Tachometer.MinusPiBy4) {
+                                //closer to the left
+                                labelMargin.left += labelFontLength;
+                            }
+                            else {
+                                labelMargin.left = Tachometer.UnitMargin;
+                            }
+                            break;
+                        case 4:
+                            if (cosAlpha < cosBeta) { //start angle < end angle
+                                if (startAngle < Tachometer.MinusPiBy4) {
+                                    //closer to the left
+                                    labelMargin.left += labelFontLength;
+                                }
+                                else {
+                                    labelMargin.left = Tachometer.UnitMargin;
+                                }
+                                if (endAngle > Tachometer.MinusPiBy4) {
+                                    //closer to the top
+                                    labelMargin.top += labelFontSize;
+                                }
+                                else {
+                                    labelMargin.top = Tachometer.UnitMargin;
+                                }
+                            }
+                            else {
+                                labelMargin.top += labelFontSize;
+                                labelMargin.bottom += labelFontSize;
+                                labelMargin.left += labelFontLength;
+                                labelMargin.right += labelFontLength;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG:  Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                default: //this should not be reached
+                    debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                    break;
+            }
+            return labelMargin;
+        }
+
+        private getTargetMargin(axisData: TachometerAxisData): IMargin {
+            var targetMargin = this.getZeroMargin();
+
+            var target = axisData ? axisData.target : null;
+
+            if (target == null || !this.showTargetLabel) {
+                return targetMargin;
+            }
+            var verticalMargin = target.textHeight;
+            var horizontalMargin = target.textWidth;
+            var startAngle = axisData.startAngle;
+            var endAngle = axisData.endAngle;
+            var startQuadrant: number = axisData.startQuadrant;
+            var endQuadrant: number = axisData.endQuadrant;
+            var cosAlpha: number = Math.abs(axisData.cosStartAngle);
+            var cosBeta: number = Math.abs(axisData.cosEndAngle);
+            var targetAngle = this.axisScale(target.value);
+            var unitRadialClosenessThreshold = Math.abs(Math.cos(Tachometer.RadialClosenessThreshold));
+            //get general case targetMargins
+            targetMargin = this.setClosestMargin(targetMargin, targetAngle, verticalMargin, horizontalMargin);
+
+            //handle special cases
+            switch (startQuadrant) {
+                case 1:
+                    switch (endQuadrant) {
+                        case 1:
+                            if (cosAlpha > cosBeta) {//start angle < endAngle
+                                targetMargin.right = horizontalMargin;
+                                if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) {//close to start
+                                    targetMargin.top = verticalMargin;
+                                }
+                                if (this.showAxisLabels) { //Add room to adjust if axis labels are present
+                                    if (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold) {//close to vertical
+                                        targetMargin.left = horizontalMargin;
+                                    }
+                                    else if (Math.sin(targetAngle) > unitRadialClosenessThreshold) { //close to PI/2
+                                        targetMargin.bottom = verticalMargin;
+                                    }
+                                }
+                            }
+                            break;
+                        case 2:
+                            targetMargin.right = horizontalMargin;
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) {
+                                targetMargin.top = verticalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold)) {//close to vertical
+                                    targetMargin.left = horizontalMargin;
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {
+                                targetMargin.bottom = verticalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold)) {//close to vertical
+                                    targetMargin.left = horizontalMargin;
+                                }
+                            }
+                            break;
+                        case 3:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) {
+                                targetMargin.top = verticalMargin;
+                                if (this.showAxisLabels) { //Add room to adjust if axis labels are present
+                                    if (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold) {//close to vertical
+                                        targetMargin.left = horizontalMargin;
+                                    }
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {
+                                targetMargin.left = horizontalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && ((Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold) //closer to horizontal and start Angle too close to horizontal
+                                        && ((endAngle - startAngle - Math.PI) < Tachometer.RadialClosenessThreshold))) {
+                                    targetMargin.top = verticalMargin;
+                                }
+                            }
+                            break;
+                        case 4:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                if (Math.abs(Math.sin(endAngle - startAngle)) < unitRadialClosenessThreshold) { //StartAngle closer to vertical than endAngle
+                                    targetMargin.top = verticalMargin;
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                if (Math.abs(Math.sin(endAngle - startAngle)) > unitRadialClosenessThreshold) {//endAngle closer to vertical than endAngle
+                                    targetMargin.top = verticalMargin;
+                                }
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 2:
+                    switch (endQuadrant) {
+                        case 1:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.right = horizontalMargin;
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.right = horizontalMargin;
+                            }
+                            break;
+                        case 2:
+                            if (cosAlpha < cosBeta) {//startAngle < endAngle
+                                targetMargin.right = horizontalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && (Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold)) { //closer to PI/2
+                                    targetMargin.top = verticalMargin;
+                                }
+                                if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {
+                                    targetMargin.bottom = verticalMargin;
+                                }
+                            }
+                            break;
+                        case 3:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.right = horizontalMargin;
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.left = horizontalMargin;
+                            }
+                            if (Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold) { //closer to horizontal
+                                targetMargin.top = verticalMargin;
+                            }
+                            break;
+                        case 4:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.right = horizontalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && ((Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold) //closer to horizontal and end Angle too close to horizontal
+                                        && ((endAngle - startAngle - Math.PI) < Tachometer.RadialClosenessThreshold))) {
+                                    targetMargin.top = verticalMargin;
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.top = verticalMargin;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 3:
+                    switch (endQuadrant) {
+                        case 1:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.bottom = verticalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && ((Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold) //closer to vertical and end Angle too close to vertical
+                                        && ((endAngle - startAngle - Math.PI) < Tachometer.RadialClosenessThreshold))) {
+                                    targetMargin.left = horizontalMargin;
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.right = horizontalMargin;
+                            }
+                            break;
+                        case 2:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.bottom = verticalMargin;
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.bottom = verticalMargin;
+                            }
+                            break;
+                        case 3:
+                            if (cosAlpha > cosBeta) { //start angle < end angle
+                                if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                    targetMargin.bottom = verticalMargin;
+                                    if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                        && (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold)) { //closer to vertical
+                                        targetMargin.right = horizontalMargin;
+                                    }
+                                }
+                                if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                    targetMargin.left = horizontalMargin;
+                                    if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                        && (Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold)) { //closer to horizontal
+                                        targetMargin.top = verticalMargin;
+                                    }
+                                }
+                            }
+                            break;
+                        case 4:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.bottom = verticalMargin;
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.top = verticalMargin;
+                            }
+                            if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                && (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold)) { //closer to vertical
+                                targetMargin.right = horizontalMargin;
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                case 4:
+                    switch (endQuadrant) {
+                        case 1:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.left = horizontalMargin;
+                            }
+                            if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.right = horizontalMargin;
+                            }
+                            if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                && (Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold)) { //closer to horizontal
+                                targetMargin.bottom = verticalMargin;
+                            }
+                            break;
+                        case 2:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.left = horizontalMargin;
+                                if ((this.showAxisLabels) //Add room to adjust if axis labels are present
+                                    && ((Math.sin(targetAngle) > unitRadialClosenessThreshold) //closer to horiontal and end Angle too close to horizontal
+                                        && ((endAngle - startAngle - Math.PI) < Tachometer.RadialClosenessThreshold))) {
+                                    targetMargin.bottom = verticalMargin;
+                                }
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.bottom = verticalMargin;
+                            }
+                            break;
+                        case 3:
+                            if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                targetMargin.left = horizontalMargin;
+                            }
+                            else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                targetMargin.left = horizontalMargin;
+                            }
+                            break;
+                        case 4:
+                            if (cosAlpha < cosBeta) { //start angle < end angle
+                                if (targetAngle - startAngle < Tachometer.RadialClosenessThreshold) { //closer to start
+                                    targetMargin.left = horizontalMargin;
+                                }
+                                else if (endAngle - targetAngle < Tachometer.RadialClosenessThreshold) {//closer to end
+                                    targetMargin.top = verticalMargin;
+                                }
+                                if (this.showAxisLabels) {//Add room to adjust if axis labels are present
+                                    if (Math.abs(Math.cos(targetAngle)) > unitRadialClosenessThreshold) { //close to vertical
+                                        targetMargin.right = horizontalMargin;
+                                    }
+                                    else if (Math.abs(Math.sin(targetAngle)) > unitRadialClosenessThreshold) { //close to horizontal
+                                        targetMargin.bottom = verticalMargin;
+                                    }
+                                }
+                            }
+                            break;
+                        default: //this should not be reached
+                            debug.assertFailFunction('DEBUG:  Unhandled startAngle and endAngle scenario.');
+                            break;
+                    }
+                    break;
+                default: //this should not be reached
+                    debug.assertFailFunction('DEBUG: Unhandled startAngle and endAngle scenario.');
+                    break;
+            }
+            return targetMargin;
+        }
+
+        private static CloseToLeftOrRightThreshold = Math.cos(Math.PI / 6);
+        private static CloseToTopOrBottomThreshold = Math.cos(Math.PI / 4);
+
+        private setClosestMargin(targetMargin: IMargin, angle: number, verticalMargin: number, horizontalMargin: number): IMargin {
+            var cosAngle = Math.cos(angle);
+            var sinAngle = Math.sin(angle);
+
+            if (sinAngle >= 0) {
+                if (cosAngle >= 0) {
+                    if (Math.abs(cosAngle) < Tachometer.CloseToLeftOrRightThreshold) {
+                        targetMargin.right = horizontalMargin;
+                    }
+                    if (Math.abs(cosAngle) > Tachometer.CloseToTopOrBottomThreshold) {
+                        targetMargin.top = verticalMargin;
+                    }
+                }
+                else {
+                    if (Math.abs(cosAngle) < Tachometer.CloseToLeftOrRightThreshold) {
+                        targetMargin.right = horizontalMargin;
+                    }
+                    if (Math.abs(cosAngle) > Tachometer.CloseToTopOrBottomThreshold) {
+                        targetMargin.bottom = verticalMargin;
+                    }
+                }
+            }
+            else {
+                if (cosAngle >= 0) {
+                    if (Math.abs(cosAngle) < Tachometer.CloseToLeftOrRightThreshold) {
+                        targetMargin.left = horizontalMargin;
+                    }
+                    if (Math.abs(cosAngle) > Tachometer.CloseToTopOrBottomThreshold) {
+                        targetMargin.top = verticalMargin;
+                    }
+                }
+                else {
+                    if (Math.abs(cosAngle) < Tachometer.CloseToLeftOrRightThreshold) {
+                        targetMargin.left = horizontalMargin;
+                    }
+                    if (Math.abs(cosAngle) > Tachometer.CloseToTopOrBottomThreshold) {
+                        targetMargin.bottom = verticalMargin;
+                    }
+                }
+            }
+            return targetMargin;
         }
     }
 }
