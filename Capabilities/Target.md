@@ -21,6 +21,7 @@ Figure 1 below shows “Target” Capability Options. All the values below are s
 
 ## Target - Value
 A value for Target can be defined using “Target Value” in Data Roles. If “Target Value” is not set in Data Roles, then you will see the “Target Value” option visible in “Target” Capability settings as shown in Figure 1. This allows you to specify a fixed value for Target. Following Figures demonstrate an example of Target Value defined through Capability Options and how it renders the target line.
+Note.Tachometer visual will attempt to position the label indicating target value such that it does not overlap any Axis Labels or Callout values. However, target value label may not be rendered in case Tachometer is unable to relocate target label in the visinity of target line.
 
 | Figure 3. “Value” set to 25000 | Figure 4. Tachometer with Target “Value” set to 25000 and “Target Value: Data Role not set (target not rendered). |
 |---|---|
