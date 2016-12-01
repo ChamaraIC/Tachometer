@@ -6,6 +6,8 @@
 ## Callout Value - Default Settings
 Callout Value is the data label that show the current value pointed by the needle. Callout Value can be shown or hidden using the On/Off switch just to the right of “Callout Value” shown in Figure 1. Callout value is shown by default.
 
+Note. Callout value gets the highest precedence over all other labels in Tachometer. This means that any label that overlap with the Callout Value label will not be rendered to make callout value clearly visible.
+
 | Figure 1. “Callout Value” Default Option Settings. | Figure 2. Tachometer with default settings for Callout Value |
 |---|---|
 | <img src="images/CalloutValueDefaults.png" alt="Drawing" width="200px">  | <img src="images/CalloutValueDefaultsSample.png" alt="Drawing" width="300px"> |
