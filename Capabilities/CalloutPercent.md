@@ -6,6 +6,8 @@
 ## Callout Percent - Default Settings
 Callout Percent is the data label that show the current value as a percent of the axis range. Axis Range is the difference between the Start Value and the End Value. Callout Percent can be shown or hidden using the On/Off switch just to the right of “Callout Percent” shown in Figure 1. Callout Percent is hidden by default.
 
+Note. Callout percent gets the second highest precedence over all other labels in Tachometer. This means that any label that overlap with the Callout percent label will not be rendered to make callout value clearly visible with the only exception of Callout Value label. If Callout Percent Label overlaps with Callout Value label, then Callout Percent label will not be rendered. Overlaps can happen between callout value and percent labels only under certain custom offset values (please read on for user offsets).
+
 | Figure 1. “Callout Percent” Switched On with default values for other options | Figure 2. Tachometer with default settings for Callout Percent when switched On |
 |---|---|
 | <img src="images/CalloutPercentDefaults.png" alt="Drawing" width="200px">  | <img src="images/CalloutPercentDefaultsSample.png" alt="Drawing" width="300px"> |
