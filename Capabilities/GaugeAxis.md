@@ -33,9 +33,9 @@ Figure 5 below shows the effect of changing the Start Angle to -150 degrees and 
 | <img src="images/GaugeAxisChangeAngles.png" alt="Drawing" width="200px">  | <img src="images/GaugeAxisChangeAnglesSample.png" alt="Drawing" width="300px"> |
 
 ## Gauge Axis - Scale
-Tachometer supports two types of scales, “Linear” and “Log”. 
-When Linear Scales are used, data values will be mapped in a linear scale along the axis from Start Angle towards the End Angle.
-When Log Scales are used, data values will be mapped in a logarithmic scale along the axis from Start Angle towards the End Angle.
+Tachometer supports two types of scales, “Linear” and “Log”. </br>
+When Linear Scales are used, data values will be mapped in a linear scale along the axis from Start Angle towards the End Angle.</br>
+When Log Scales are used, data values will be mapped in a logarithmic scale along the axis from Start Angle towards the End Angle. Keep in mind that logrithm values are defined only for positive values. What this means is, if you have a negative start or end value, then you are not allowed to select log scale.
 
 Please note that the count of axis labels that will be displayed along the axis can be controlled but in different ways based on the type of Axis Scale you use. If you use Linear Scale, there will be approximately 4 Axis Labels by default. However, you can configure the number of data labels and how they are placed. Please see Examples on [Axis Labels](AxisLabels.md) for more details. 
 On the other hand, if you select Log scale, then the number of axis labels will be automatically determined based on the Start Value and End Value defined for the axis. You can limit overcrowding Axis Labels when Log Scale is used with the help of “Reduce” option in Axis Label Capabilities.
