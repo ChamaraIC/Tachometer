@@ -73,7 +73,6 @@ module powerbi.visuals {
         formatter?: IValueFormatter;
         textHeight?: number;
         invert?: boolean;
-        value?: string; //Data value of the label
         formattedValue?: string; //formatted string value of the label
         textWidth?: number; //width of formatted text
     }
@@ -228,7 +227,7 @@ module powerbi.visuals {
 
     export interface TachometerRangeObject extends DataViewObject {
         rangeColor?: Fill;
-        thickness?: string;
+        thickness?: number;
         startValue?: number;
     }
 
@@ -251,9 +250,9 @@ module powerbi.visuals {
 
     export interface TachometerIndicatorObject extends DataViewObject {
         pointerColor?: Fill;
-        pointerSizeFactor?: string; //Ratio of distance to Pointer tip as a factor of radius
+        pointerSizeFactor?: number; //Ratio of distance to Pointer tip as a factor of radius
         baseColor?: Fill;
-        baseThicknessFactor?: string; //Inner Radius of the base as a ratio of its outer radius
+        baseThicknessFactor?: number; //Inner Radius of the base as a ratio of its outer radius
     }
 
     export interface TachometerIndicatorObjects extends DataViewObjects {
@@ -386,6 +385,7 @@ module powerbi.visuals {
         private static DefaultRange1Color = '#0EFF23'; //Green;
         private static DefaultRange2Color = '#FFFE00'; //Yellow
         private static DefaultRange3Color = 'red'; //Red
+        private static defaultLabelColor: string = '#777777';
 
         private static DefaultCalloutFontSizeInPt = 20;
         private static DefaultCalloutPercentFontSizeInPt = 14;
@@ -907,7 +907,6 @@ module powerbi.visuals {
             enumeration.pushInstance(instance);
         }
 
-        private static defaultLabelColor: string = '#777777';
         private enumerateLabelInstance(instance: VisualObjectInstance, labelSettings: TachometerDataLabelsData) {
             var precision = labelSettings.precision;
             instance.properties['show'] = labelSettings.show;
@@ -970,8 +969,12 @@ module powerbi.visuals {
             enumeration.pushInstance(instance);
         }
 
+        private static isNotNegative(value: number): Boolean {
+            return value === undefined || value >= 0;
+        }
+
         private enumerateAxis(enumeration: ObjectEnumerationBuilder): void {
-            var properties = Tachometer.getTachometerObjectsProperties(this.dataView);
+            var properties = Tachometer.getTachometerObjectsProperties(this.dataView, this.axisData);
 
             enumeration.pushInstance({
                 objectName: 'axis',
@@ -992,7 +995,7 @@ module powerbi.visuals {
             var hasRangeObject: boolean = (objects != null && rangeObject != null);
 
             properties.rangeColor = hasRangeObject && rangeObject.rangeColor ? rangeObject.rangeColor.solid.color : undefined;
-            properties.thickness = hasRangeObject && rangeObject.thickness ? rangeObject.thickness : undefined;
+            properties.thickness = hasRangeObject && rangeObject.thickness != null ? rangeObject.thickness : undefined;
             if (showStartValue && startValueDataRoleName && !DataRoleHelper.hasRoleInDataView(dataView, startValueDataRoleName)) {
                 properties.startValue = hasRangeObject && rangeObject.startValue != null ? rangeObject.startValue : undefined;
             }
@@ -1041,9 +1044,9 @@ module powerbi.visuals {
             var hasIndicatorObject: boolean = (objects != null && indicator != null);
 
             properties.pointerColor = hasIndicatorObject && indicator.pointerColor != null ? indicator.pointerColor.solid.color : undefined;
-            properties.pointerSizeFactor = hasIndicatorObject && indicator.pointerSizeFactor ? indicator.pointerSizeFactor : undefined;
+            properties.pointerSizeFactor = hasIndicatorObject && indicator.pointerSizeFactor != null ? indicator.pointerSizeFactor : undefined;
             properties.baseColor = hasIndicatorObject && indicator.baseColor != null ? indicator.baseColor.solid.color : undefined;
-            properties.baseThicknessFactor = hasIndicatorObject && indicator.baseThicknessFactor ? indicator.baseThicknessFactor : undefined;
+            properties.baseThicknessFactor = hasIndicatorObject && indicator.baseThicknessFactor != null ? indicator.baseThicknessFactor : undefined;
 
             enumeration.pushInstance({
                 selector: null,
@@ -1053,21 +1056,32 @@ module powerbi.visuals {
             });
         }
 
-        private static getTachometerObjectsProperties(dataView: DataView): TachometerAxisObject {
+        private static getTachometerObjectsProperties(dataView: DataView, axisData: TachometerAxisData): TachometerAxisObject {
             var properties: any = {};
             var objects: TachometerAxisObjects = dataView && dataView.metadata ? <TachometerAxisObjects>dataView.metadata.objects : null;
             var axisObject: TachometerAxisObject = objects ? objects.axis : null;
             var hasAxisObject: boolean = (objects != null && axisObject != null);
+            var startValue: number;
+            var endValue: number;
 
             properties.startAngle = hasAxisObject && axisObject.startAngle != null ? axisObject.startAngle : undefined;
             properties.endAngle = hasAxisObject && axisObject.endAngle != null ? axisObject.endAngle : undefined;
             if (!DataRoleHelper.hasRoleInDataView(dataView, Tachometer.RoleNames.startValue)) {
-                properties.startValue = hasAxisObject && axisObject.startValue != null ? axisObject.startValue : undefined;
+                startValue = properties.startValue = hasAxisObject && axisObject.startValue != null ? axisObject.startValue : undefined;
+            }
+            else {
+                startValue = axisData.startValue;
             }
             if (!DataRoleHelper.hasRoleInDataView(dataView, Tachometer.RoleNames.endValue)) {
-                properties.endValue = hasAxisObject && axisObject.endValue != null ? axisObject.endValue : undefined;
+                endValue = properties.endValue = hasAxisObject && axisObject.endValue != null ? axisObject.endValue : undefined;
             }
-            properties.axisScaleType = hasAxisObject && axisObject.axisScaleType ? axisObject.axisScaleType : axisType.linear;
+            else {
+                endValue = axisData.endValue;
+            }
+
+            properties.axisScaleType = hasAxisObject && axisObject.axisScaleType
+                && Tachometer.isNotNegative(startValue) && Tachometer.isNotNegative(endValue) //log scale not defined for negative values
+                ? axisObject.axisScaleType : axisType.linear;
 
             return properties;
         }
@@ -1482,7 +1496,7 @@ module powerbi.visuals {
 
         private static transformGaugeAxisSettings(dataView: DataView, axisData: TachometerAxisData): TachometerAxisData {
             // Override settings according to property pane axis values
-            var axisOptions: TachometerAxisObject = Tachometer.getTachometerObjectsProperties(dataView);
+            var axisOptions: TachometerAxisObject = Tachometer.getTachometerObjectsProperties(dataView, axisData);
 
             axisData.startAngle = $.isNumeric(axisOptions.startAngle) ? (axisOptions.startAngle * Tachometer.DegreeToRadConversionFactor)
                 : Tachometer.UnintializedStartAngle;
@@ -1565,7 +1579,6 @@ module powerbi.visuals {
             var callout = Tachometer.transformDataLabelSettings(dataView, 'calloutValue', Tachometer.getDefaultTachometerCalloutSettings());
             if (callout.show) {
                 var value = axisData.value;
-                callout.value = value.toString();
                 var formatter = this.getFormatter(callout.displayUnits, callout.precision, value);
                 var formattedValue = formatter.format(value);
                 callout.formattedValue = formattedValue;
@@ -1582,7 +1595,6 @@ module powerbi.visuals {
         private setCalloutPercentValue(calloutPercent: TachometerDataLabelsData, axisData: TachometerAxisData): TachometerDataLabelsData {
             if (calloutPercent && calloutPercent.show) {
                 var value = calloutPercent.invert ? 100 - axisData.percent : axisData.percent;
-                calloutPercent.value = value.toString();
                 var formatter = this.getFormatter(calloutPercent.displayUnits, calloutPercent.precision, value, true);
                 var formattedValue = formatter.format(value);
                 formattedValue = (formattedValue === undefined) ? ' [-%]' : ' [' + formattedValue + '%]';
@@ -1750,9 +1762,9 @@ module powerbi.visuals {
                     rangeSettings.rangeColor = defaultRangeColor;
                 }
                 if (rangeObject.thickness && rangeObject.thickness !== undefined) {
-                    thickness = +rangeObject.thickness;
+                    thickness = rangeObject.thickness;
                     thickness = Tachometer.clamp(thickness, 0, 100);
-                    rangeObject.thickness = thickness.toString(); //We want to set this to clamped value for enumeration
+                    rangeObject.thickness = thickness; //We want to set this to clamped value for enumeration
                 }
                 else {
                     thickness = Tachometer.DefaultRangeThickness;
@@ -1830,8 +1842,8 @@ module powerbi.visuals {
 
             if (hasIndicatorObject) {
                 if (indicatorObject.pointerSizeFactor && indicatorObject.pointerSizeFactor !== undefined) {
-                    var thickness: number = Tachometer.clamp(+indicatorObject.pointerSizeFactor, 0, 100);
-                    indicatorObject.pointerSizeFactor = thickness.toString(); //We want to set this to clamped value for enumeration
+                    var thickness: number = Tachometer.clamp(indicatorObject.pointerSizeFactor, 0, 100);
+                    indicatorObject.pointerSizeFactor = thickness; //We want to set this to clamped value for enumeration
                     indicatorData.pointerSizeFactor = thickness / 100;
                 }
                 else {
@@ -1844,8 +1856,8 @@ module powerbi.visuals {
                     indicatorData.pointerColor = Tachometer.defaultIndicatorSettings.pointerColor;
                 }
                 if (indicatorObject.baseThicknessFactor && indicatorObject.baseThicknessFactor !== undefined) {
-                    var thickness: number = Tachometer.clamp(+indicatorObject.baseThicknessFactor, 0, 100);
-                    indicatorObject.baseThicknessFactor = thickness.toString(); //We want to set this to clamped value for enumeration
+                    var thickness: number = Tachometer.clamp(indicatorObject.baseThicknessFactor, 0, 100);
+                    indicatorObject.baseThicknessFactor = thickness; //We want to set this to clamped value for enumeration
                     indicatorData.baseThicknessFactor = 1 - thickness / 100;
                 }
                 else {
@@ -1921,7 +1933,7 @@ module powerbi.visuals {
             return viewport.width
                 - margins.mainMargin.left - margins.mainMargin.right
                 - Math.max(margins.targetMargin.right, margins.labelMargin.right)
-                - Math.max(margins.targetMargin.left, margins.labelMargin.left) ;
+                - Math.max(margins.targetMargin.left, margins.labelMargin.left);
         }
 
         private getAvailebleHeight(viewport: IViewport, margins: Margins, calloutValueSpace: number, calloutPercentSpace: number): number {
@@ -2258,7 +2270,7 @@ module powerbi.visuals {
         private updateTarget(viewModel: TachometerViewModel) {
             var target = viewModel.axis.target;
 
-            if ((target.show)&&(target.value !== Tachometer.UnintializedStartValue)) {
+            if ((target.show) && (target.value !== Tachometer.UnintializedStartValue)) {
                 this.updateTargeIndicator(target);
                 if (this.showTargetLabel) {
                     this.updateTargetText(viewModel, this.axisLabels);
@@ -2308,7 +2320,7 @@ module powerbi.visuals {
             (baseXOffset: number, callout: TachometerDataLabelsData, width: number, textWidth: number, padding: number): number {
             var xOffsetPercent = callout.offset.x;
             if (xOffsetPercent !== 0) {
-                var userXOffset = xOffsetPercent / 200 * (width - textWidth - 2 * padding) ; //we have width /2 on either side
+                var userXOffset = xOffsetPercent / 200 * (width - textWidth - 2 * padding); //we have width /2 on either side
                 var threshold: number = textWidth / 2 + padding;
                 var offset = baseXOffset + userXOffset;
 
@@ -3286,10 +3298,10 @@ module powerbi.visuals {
             var labelMargin: IMargin = this.addPadding(this.getLabelMargins(axisData), this.gaugeStyle.labels.padding);
 
             var MainMargin = {
-                top: (targetMargin.top + labelMargin.top) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.top ,
+                top: (targetMargin.top + labelMargin.top) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.top,
                 bottom: (targetMargin.bottom + labelMargin.bottom) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.bottom,
                 left: (targetMargin.left + labelMargin.left) > 0 ? Tachometer.ReducedHorizontalMargin : Tachometer.DefaultMarginSettings.left,
-                right: (targetMargin.right + labelMargin.right) > 0 ? Tachometer.ReducedHorizontalMargin: Tachometer.DefaultMarginSettings.right,
+                right: (targetMargin.right + labelMargin.right) > 0 ? Tachometer.ReducedHorizontalMargin : Tachometer.DefaultMarginSettings.right,
             };
 
             return {
@@ -3299,7 +3311,7 @@ module powerbi.visuals {
             };
         }
 
-        private addPadding(margin: IMargin, padding:number): IMargin {
+        private addPadding(margin: IMargin, padding: number): IMargin {
             return {
                 top: margin.top > 0 ? margin.top + padding : 0,
                 bottom: margin.bottom > 0 ? margin.bottom + padding : 0,
