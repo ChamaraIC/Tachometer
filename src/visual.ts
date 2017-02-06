@@ -363,7 +363,6 @@ module powerbi.extensibility.visual {
                 padding: 10,
             }
         };
-//        private static DefaultRange1Color = '#0EFF23'; //Green;
         private static DefaultRange1Color = '#0EFF23'; //Green;
         private static DefaultRange2Color = '#FFFE00'; //Yellow
         private static DefaultRange3Color = 'red'; //Red
