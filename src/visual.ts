@@ -315,9 +315,9 @@ module powerbi.extensibility.visual {
      * Updated to CLI API 1/31/2017
      */
     export class Tachometer implements IVisual {
-        private static UnintializedStartValue = -Infinity;
-        private static UnintializedEndValue = +Infinity;
-        private static UnintializedRangeStartValue = Tachometer.UnintializedEndValue; //uninitialize to UNINITIALIZED_END_VALUE so that the range is invalid
+        private static UninitializedStartValue = -Infinity;
+        private static UninitializedEndValue = +Infinity;
+        private static UnintializedRangeStartValue = Tachometer.UninitializedEndValue; //uninitialize to UNINITIALIZED_END_VALUE so that the range is invalid
         private static UninitializedRatio = +Infinity;
         private static UnintializedStartAngle = -Math.PI * 2 / 3;
         private static UnintializedEndAngle = Math.PI * 2 / 3;
@@ -447,7 +447,7 @@ module powerbi.extensibility.visual {
 
         private static defaultTargetSettings: TachometerTargetData = {
             show: true,
-            value: Tachometer.UnintializedStartValue,
+            value: Tachometer.UninitializedStartValue,
             lineColor: 'black',
             innerRadiusRatio: Tachometer.UninitializedRatio,
             radius: 1,
@@ -537,8 +537,8 @@ module powerbi.extensibility.visual {
 
         private static initializeTachometerData(): TachometerAxisData {
             var axisData: TachometerAxisData = {
-                startValue: Tachometer.UnintializedStartValue,
-                endValue: Tachometer.UnintializedEndValue,
+                startValue: Tachometer.UninitializedStartValue,
+                endValue: Tachometer.UninitializedEndValue,
                 startAngle: Tachometer.UnintializedStartAngle,
                 endAngle: Tachometer.UnintializedEndAngle,
                 axisScaleType: axisScaleType.linear,
@@ -557,7 +557,7 @@ module powerbi.extensibility.visual {
                 sinEndAngle: 0,
                 range1: {
                     startValue: Tachometer.UnintializedRangeStartValue,
-                    endValue: Tachometer.UnintializedEndValue,
+                    endValue: Tachometer.UninitializedEndValue,
                     rangeColor: Tachometer.DefaultRange1Color,
                     innerRadiusRatio: 0.5,
                     radius: 1,
@@ -567,7 +567,7 @@ module powerbi.extensibility.visual {
                 },
                 range2: {
                     startValue: Tachometer.UnintializedRangeStartValue,
-                    endValue: Tachometer.UnintializedEndValue,
+                    endValue: Tachometer.UninitializedEndValue,
                     rangeColor: Tachometer.DefaultRange2Color,
                     innerRadiusRatio: 0.5,
                     radius: 1,
@@ -577,7 +577,7 @@ module powerbi.extensibility.visual {
                 },
                 range3: {
                     startValue: Tachometer.UnintializedRangeStartValue,
-                    endValue: Tachometer.UnintializedEndValue,
+                    endValue: Tachometer.UninitializedEndValue,
                     rangeColor: Tachometer.DefaultRange3Color,
                     innerRadiusRatio: 0.5,
                     radius: 1,
@@ -722,7 +722,7 @@ module powerbi.extensibility.visual {
             // Only show the target label if:
             //   1. There is a target
             //   2. The viewport width is big enough for a target
-            this.showTargetLabel = (axisData.target.value !== Tachometer.UnintializedStartValue)
+            this.showTargetLabel = isFinite(axisData.target.value)
                 && axisData.target.show
                 && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
                 && (maxRenderWidth > axisData.target.textWidth * Tachometer.TargetLabelPruningLimit.width)
@@ -1909,7 +1909,7 @@ module powerbi.extensibility.visual {
 
             var currVal = currentEnd;
             for (var index = boarders.length - 1; index > 0; index--) {
-                if (boarders[index] === Tachometer.UnintializedRangeStartValue) {
+                if (!isFinite(boarders[index])) {
                     boarders[index] = currVal;
                 }
                 else {
@@ -2155,7 +2155,7 @@ module powerbi.extensibility.visual {
         private updateTarget(viewModel: TachometerViewModel) {
             var target = viewModel.axis.target;
 
-            if ((target.show)&&(target.value !== Tachometer.UnintializedStartValue)) {
+            if (target.show && isFinite(target.value)) {
                 this.updateTargeIndicator(target);
                 if (this.showTargetLabel) {
                     this.updateTargetText(viewModel, this.axisLabels);
@@ -2171,18 +2171,18 @@ module powerbi.extensibility.visual {
         private resetTachometerData(): TachometerAxisData {
             var axisData = this.axisData;
 
-            axisData.startValue = Tachometer.UnintializedStartValue;
-            axisData.endValue = Tachometer.UnintializedEndValue;
-            axisData.value = 0;
+            axisData.startValue = Tachometer.UninitializedStartValue;
+            axisData.endValue = Tachometer.UninitializedEndValue;
+            axisData.value = undefined;
             axisData.tooltipInfo = [];
             axisData.valueRange = 0;
             axisData.range1.startValue = Tachometer.UnintializedRangeStartValue;
-            axisData.range1.endValue = Tachometer.UnintializedEndValue;
+            axisData.range1.endValue = Tachometer.UninitializedEndValue;
             axisData.range2.startValue = Tachometer.UnintializedRangeStartValue;
-            axisData.range2.endValue = Tachometer.UnintializedEndValue;
+            axisData.range2.endValue = Tachometer.UninitializedEndValue;
             axisData.range3.startValue = Tachometer.UnintializedRangeStartValue;
-            axisData.range3.endValue = Tachometer.UnintializedEndValue;
-            axisData.target.value = Tachometer.UnintializedStartValue;
+            axisData.range3.endValue = Tachometer.UninitializedEndValue;
+            axisData.target.value = Tachometer.UninitializedStartValue;
             axisData.target.innerRadiusRatio = Tachometer.UninitializedRatio;
 
             return axisData;
@@ -2198,42 +2198,42 @@ module powerbi.extensibility.visual {
                     if (col && col.roles) {
                         if (col.roles[Tachometer.RoleNames.y]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.value = Tachometer.UnintializedStartValue;
+                                axisData.value = Tachometer.UninitializedStartValue;
                             else {
                                 axisData.value = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.y, value: value.toString() });
                             }
                         } if (col.roles[Tachometer.RoleNames.startValue]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.startValue = Tachometer.UnintializedStartValue;
+                                axisData.startValue = Tachometer.UninitializedStartValue;
                             else {
                                 axisData.startValue = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.startValue, value: value.toString() });
                             }
                         } if (col.roles[Tachometer.RoleNames.endValue]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.endValue = Tachometer.UnintializedEndValue;
+                                axisData.endValue = Tachometer.UninitializedEndValue;
                             else {
                                 axisData.endValue = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.endValue, value: value.toString() });
                             }
                         } if (col.roles[Tachometer.RoleNames.targetValue]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.target.value = Tachometer.UnintializedStartValue;
+                                axisData.target.value = Tachometer.UninitializedStartValue;
                             else {
                                 axisData.target.value = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.targetValue, value: value.toString() });
                             }
                         } if (col.roles[Tachometer.RoleNames.range2StartValue]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.range2.startValue = Tachometer.UnintializedStartValue;
+                                axisData.range2.startValue = Tachometer.UninitializedStartValue;
                             else {
                                 axisData.range2.startValue = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.range2StartValue, value: value.toString() });
                             }
                         } if (col.roles[Tachometer.RoleNames.range3StartValue]) {
                             if (value === undefined || isNaN(Number(value)))
-                                axisData.range3.startValue = Tachometer.UnintializedStartValue;
+                                axisData.range3.startValue = Tachometer.UninitializedStartValue;
                             else {
                                 axisData.range3.startValue = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.range3StartValue, value: value.toString() });
@@ -2402,7 +2402,8 @@ module powerbi.extensibility.visual {
             var needleHeight = needleTip - needleBase;
             var halfNeedleWidth = needleHeight * Tachometer.NeedleHeightToWidthRatio / 2;
 
-            var needleAngleInDegrees: number = this.axisScale(value) * Tachometer.RadToDegreeConversionFactor;
+            var needleAngleInDegrees: number = (isFinite(value) ? this.axisScale(value) : this.axisScale.domain()[0])
+                                                * Tachometer.RadToDegreeConversionFactor;
 
             indicator.baseRadius = baseArcRadius;
             indicator.baseInnerRadius = baseArcInnerRadius;
@@ -2494,7 +2495,7 @@ module powerbi.extensibility.visual {
                 var fontSizePx = dataLabels.fontSizePx;
                 var textHeight = PixelConverter.fromPointToPixel(dataLabels.fontSize);
 
-                var lastAngle: number = Tachometer.UnintializedStartValue; // initialize to a very small number
+                var lastAngle: number = Tachometer.UninitializedStartValue; // initialize to a very small number
                 var reduce = dataLabels.reduce;
                 var lastDisplayValue = '';
                 var lastAxisLabel: TachometerAxisLabel;
@@ -2753,15 +2754,16 @@ module powerbi.extensibility.visual {
             axisData.endAngle = endAngle;
             axisData.angleRange = axisData.endAngle - axisData.startAngle;
 
-            var startValue = (axisData.startValue === Tachometer.UnintializedStartValue) ? Tachometer.DefaultMin : axisData.startValue;
-            var endValue = (axisData.endValue === Tachometer.UnintializedEndValue)
-                ? (axisData.value != null && axisData.value !== undefined ? axisData.value * 2 : Tachometer.DefaultMax)
-                : axisData.endValue;
+            var startValue = isFinite(axisData.startValue) ? axisData.startValue : Tachometer.DefaultMin;
+            var value = isFinite(axisData.value) ? axisData.value : undefined;
+            var endValue = isFinite(axisData.endValue) ? axisData.endValue 
+                : (isFinite(axisData.value) ? axisData.value * 2 : Tachometer.DefaultMax);
 
             if (startValue === 0 && endValue === 0) {
                 endValue = 1;
             }
 
+            axisData.value  = value;
             axisData.endValue = endValue;
             axisData.startValue = startValue;
             axisData.valueRange = endValue - startValue;
@@ -2818,9 +2820,9 @@ module powerbi.extensibility.visual {
             var thickness: number;
 
             if (hasRangeObject) {
-                if ((rangeSettings.startValue === Tachometer.UnintializedRangeStartValue //This basically means that the value is not defined in field wells
+                if ((!isFinite(rangeSettings.startValue) //This basically means that the value is not defined in field wells
                     || rangeSettings.startValue === undefined)
-                    && (rangeObject.startValue && rangeObject.startValue !== undefined)) {
+                    && (rangeObject.startValue !== undefined)) {
                     rangeSettings.startValue = rangeObject.startValue;
                 }
                 if (rangeObject.rangeColor && rangeObject.rangeColor !== undefined) {
@@ -2873,8 +2875,8 @@ module powerbi.extensibility.visual {
                 if (targetObject.show !== undefined) {
                     targetSettings.show = <boolean>targetObject.show;
                 }
-                if (targetSettings.value === Tachometer.UnintializedStartValue //This basically means that the value is not defined in field wells
-                    && targetObject.value && targetObject.value !== undefined) {
+                if (targetSettings.value === Tachometer.UninitializedStartValue //This basically means that the value is not defined in field wells
+                    && targetObject.value !== undefined) {
                     targetSettings.value = targetObject.value;
                 }
                 if (targetObject.lineColor && targetObject.lineColor !== undefined) {
@@ -2904,7 +2906,7 @@ module powerbi.extensibility.visual {
             }
             else {
                 targetSettings.show = Tachometer.defaultTargetSettings.show;
-                if (targetSettings.value === Tachometer.UnintializedStartValue) {//This basically means that the value is not defined in field wells
+                if (targetSettings.value === Tachometer.UninitializedStartValue) {//This basically means that the value is not defined in field wells
                     targetSettings.value = Tachometer.defaultTargetSettings.value;
                 }
                 targetSettings.lineColor = Tachometer.defaultTargetSettings.lineColor;
@@ -3064,11 +3066,19 @@ module powerbi.extensibility.visual {
                         startIndex = tickCount - 1;
                         endIndex = 0;
                     }
-                    if (this.isBetween(targetValue, axis.startValue, axisLabels[startIndex].value)) {
+                    if (this.isBetween(targetValue, axis.startValue, axisLabels[startIndex].value)
+                        || (!this.isBetween(targetValue, axis.startValue, axis.endValue) 
+                            && ((axis.directionClockwise && targetValue <= axis.startValue)
+                                || (!axis.directionClockwise && targetValue >= axis.startValue )) )
+                    ) {
                         //target Value is between startValue and the first Axis Label
                         targetRect = this.placeTargetBeforeFirstLabel(axisLabels[startIndex].rect, targetRect, targetDetails);
                     }
-                    else if (this.isBetween(targetValue, axisLabels[endIndex].value, axis.endValue)) {
+                    else if (this.isBetween(targetValue, axisLabels[endIndex].value, axis.endValue)
+                             || (!this.isBetween(targetValue, axis.startValue, axis.endValue) 
+                                   && ((axis.directionClockwise && targetValue >= axis.endValue)
+                                    || (!axis.directionClockwise && targetValue <= axis.endValue )) )
+                    ) {
                         //target Value is between last Axis Label and endValue
                         targetRect = this.placeTargetAfterLastLabel(axisLabels[endIndex].rect, targetRect, targetDetails);
                     }
@@ -3646,7 +3656,7 @@ module powerbi.extensibility.visual {
 
             properties['show'] = hasTargetObject && targetObject.show != null ? targetObject.show : true;
             if (!DataRoleHelper.hasRoleInDataView(dataView, Tachometer.RoleNames.targetValue)) {
-                properties.value = hasTargetObject && targetObject.value ? targetObject.value : undefined;
+                properties.value = hasTargetObject ? targetObject.value : undefined;
             }
 
             properties.lineColor = hasTargetObject && targetObject.lineColor ? targetObject.lineColor.solid.color : undefined;
