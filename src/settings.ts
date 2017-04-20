@@ -29,4 +29,12 @@ module powerbi.extensibility.visual {
         linear = "Linear" as any,
         log = "Log" as any
     }    
+
+    export enum percentType { //Where percent value is measured against
+        endValue = "EndValue" as any,
+        target = "Target" as any,
+        range2Start = "Range2Start" as any,
+        range3Start = "Range3Start" as any
+    }    
 }
+

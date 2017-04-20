@@ -20,6 +20,8 @@ Note. Callout percent gets the second highest precedence over all other labels i
 |Precision|Auto|Number of decimal places to show|
 |X Offset|0% of Width|Horizontal percent displacement of Callout Percent from default position|
 |Y Offset|0% of Height|Vertical percent displacement of Callout Percent from default position|
+|100%|End Value|This value will be considered as 100% when calculating the percentage of the value.|
+|Invert|False|Invert percentage value to be measured form the End Value (Start Value is default)|
 
 ## Callout Percent - Color, Display Units and Text Size
 Following example shows customized Color, Display Units and Text Size settings for Callout Percent. In this example, the Color of Callout Value is set to a Green shade and Text Size set to 25 pt. 
@@ -38,6 +40,9 @@ Following example shows how placement of the Callout Percent can be customized w
 | Figure 5. Offset Set to 20% and Y Offset Set to 17% to move the Callout Percent from its default to desired position. | Figure 6. Tachometer with Callout Percent placed at a different position from its default (bottom middle) using X Offset and Y Offset. |
 |---|---|
 | <img src="images/CalloutPercentOffset.png" alt="Drawing" width="200px">  | <img src="images/CalloutPercentOffsetSample.png" alt="Drawing" width="300px"> |
+
+## Callout Percent - 100%
+Depending on your need, you may want to evaluate the percentage against the End Value or Target or a different data point. This setting can be used to specify your 100% to evaluate your value against. This works in tandem with Invert option that helps you define the datum for calculating percentages.
 
 ## Callout Percent - Invert
 There are times when you want to display the percent displacement from End Value rather than the default Start Value. This is also true when you switch your Start Value and End Value in Data Role Settings to invert the orientation of the gauge face. “Invert” option can be used to show the percentage value as a difference from 100%. 

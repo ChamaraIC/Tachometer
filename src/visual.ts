@@ -76,6 +76,7 @@ module powerbi.extensibility.visual {
         formatter?: IValueFormatter;
         textHeight?: number;
         invert?: boolean;
+        percentType?: percentType; //Where percent value is measured against
         formattedValue?: string; //formatted string value of the label
         textWidth?: number; //width of formatted text
     }
@@ -131,9 +132,11 @@ module powerbi.extensibility.visual {
         xOffset?: number;
         yOffset?: number;
         invert?: boolean;
+        percentType: percentType; //Where percent value is measured against
     }
 
     export interface TachometerAxisData extends TooltipEnabledDataPoint {
+        show: boolean;
         value: number;
         percent: number;
         startAngle: number;  //The angle to start the dial
@@ -207,6 +210,13 @@ module powerbi.extensibility.visual {
         textHeight: number;
         rect: TachometerRectangle; //redundat data for performance
         graphicsElement: d3.Selection<any>;//link to the graphics element
+    }
+
+    export interface TachometerMarginObject extends DataViewObject {
+        top: number;
+        bottom: number;
+        left: number;
+        right: number;
     }
 
     export interface TachometerAxisObject extends DataViewObject {
@@ -293,6 +303,7 @@ module powerbi.extensibility.visual {
         targetValue: string;
         range2StartValue: string;
         range3StartValue: string;
+        displayFilter: string;
     }
 
     export interface Margins {
@@ -330,14 +341,19 @@ module powerbi.extensibility.visual {
         private static MinHeightForAxisLabel = 150;
         private static MinWidthForTargetLabel = 150;
         private static MinHeightForTargetLabel = 150;
-        private static ReducedHorizontalMargin = 15;
-        private static ReducedVerticaltMargin = 10;
+        private static MinWidthForCalloutLabel = 125;
+        private static MinHeightForCalloutLabel = 120;
+        private static MinWidthForCalloutPercentLabel = 140;
+        private static MinHeightForCalloutPercentLabel = 130;
+        private static ReducedHorizontalMargin = 5;
+        private static ReducedVerticaltMargin = 5;
         private static UnitMargin = 5; //Used for logic
+        private static MaxMarginSize = 20;
         private static DefaultMarginSettings: IMargin = {
-            top: 20,
-            bottom: 15,
-            left: 15,
-            right: 15
+            top: 5,
+            bottom: 5,
+            left: 5,
+            right: 5
         };
 
         private static DefaultMax = 1;
@@ -437,6 +453,12 @@ module powerbi.extensibility.visual {
         private hostService: IVisualHost;
         private dataView: DataView;
         private metadataColumn: DataViewMetadataColumn;
+        private marginSettings: IMargin = {
+            top: Tachometer.DefaultMarginSettings.top,
+            bottom: Tachometer.DefaultMarginSettings.bottom,
+            left: Tachometer.DefaultMarginSettings.left,
+            right: Tachometer.DefaultMarginSettings.right            
+        }
 
         private static defaultLabelFontFamily: string = 'helvetica, arial, sans-serif';
         private static defaultLabelfontWeight: string = 'normal';
@@ -480,6 +502,7 @@ module powerbi.extensibility.visual {
             targetValue: 'TargetValue',
             range2StartValue: 'Range2StartValue',
             range3StartValue: 'Range3StartValue',
+            displayFilter: 'DisplayFilter',
         };
 
 
@@ -537,6 +560,7 @@ module powerbi.extensibility.visual {
 
         private static initializeTachometerData(): TachometerAxisData {
             var axisData: TachometerAxisData = {
+                show: true,
                 startValue: Tachometer.UninitializedStartValue,
                 endValue: Tachometer.UninitializedEndValue,
                 startAngle: Tachometer.UnintializedStartAngle,
@@ -668,9 +692,10 @@ module powerbi.extensibility.visual {
             }
         }
 
-        private transform(dataView: DataView, tooltipsEnabled: boolean = true): TachometerViewModel {
-            var axisData: TachometerAxisData = this.transformTachometerData(dataView);
+        private transform(dataView: DataView, tooltipsEnabled: boolean = true): TachometerViewModel {            
             this.metadataColumn = Tachometer.getMetaDataColumn(dataView);
+            this.transformMarginSettings(dataView);
+            var axisData: TachometerAxisData = this.transformTachometerData(dataView);
 
             return {
                 axis: axisData,
@@ -697,7 +722,7 @@ module powerbi.extensibility.visual {
             var calloutValueUserDefinedYOffset = 0;
             var calloutPercentUserDefinedYOffset = 0;
             var maxRenderWidth = viewport.width - 2 * Tachometer.ReducedHorizontalMargin;
-            var maxRenderHeight = viewport.height - Tachometer.DefaultMarginSettings.top - Tachometer.DefaultMarginSettings.bottom;
+            var maxRenderHeight = viewport.height - this.marginSettings.top - this.marginSettings.bottom;
 
             this.axisData = axisData;
             this.setAxisScale(axisData);
@@ -732,24 +757,24 @@ module powerbi.extensibility.visual {
 
             // Only show the callout Value label if:
             //   1. There is a callout Value
-            //   2. The viewport width is big enough for a target
+            //   2. The viewport width is big enough for callout
             this.showCalloutValue = calloutValue
                 && calloutValue.show
-                && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
+                && (maxRenderWidth > Tachometer.MinWidthForCalloutLabel)
                 && (maxRenderWidth > calloutValue.textWidth * Tachometer.CalloutPruningLimit.width)
-                && (maxRenderHeight > Tachometer.MinHeightForTargetLabel)
+                && (maxRenderHeight > Tachometer.MinHeightForCalloutLabel)
                 && (maxRenderHeight > calloutValue.textHeight * Tachometer.CalloutPruningLimit.height)
                 && showLabels;
 
             // Only show the callout Percent label if:
             //   1. There is a callout Percent
-            //   2. The viewport width is big enough for a target
+            //   2. The viewport width is big enough for callout percent
             this.showCalloutPercent = calloutPercent
                 && calloutPercent.show
-                && (maxRenderWidth > Tachometer.MinWidthForTargetLabel)
+                && (maxRenderWidth > Tachometer.MinWidthForCalloutPercentLabel)
                 && (maxRenderWidth > calloutPercent.textWidth * Tachometer.CalloutPruningLimit.width)
-                && (maxRenderHeight > Tachometer.MinHeightForTargetLabel)
-                && (maxRenderHeight > calloutPercent.textHeight * Tachometer.CalloutPruningLimit.height)
+                && (maxRenderHeight - (this.showCalloutValue ? calloutPercent.textHeight: 0) > Tachometer.MinHeightForCalloutPercentLabel )
+                && (maxRenderHeight - (this.showCalloutValue ? calloutPercent.textHeight: 0)> calloutPercent.textHeight * Tachometer.CalloutPruningLimit.height)
                 && showLabels;
 
             axisData.dataLabels.formatter = this.getWiderFormatter(axisData.dataLabels, axisData.startValue, axisData.endValue);
@@ -769,7 +794,7 @@ module powerbi.extensibility.visual {
 
             if (this.showCalloutPercent) {
                 calloutPercentTextHeight = callout.calloutPercent.textHeight + this.gaugeStyle.callout.padding;
-                var yOffsetBaseEstimate = viewport.height - (Tachometer.DefaultMarginSettings.bottom + calloutPercentTextHeight);
+                var yOffsetBaseEstimate = viewport.height - (this.marginSettings.bottom + calloutPercentTextHeight);
                 //Adjust for user defined label displacement
                 calloutPercentUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutPercent, viewport.height, this.gaugeStyle.callout.padding);
                 calloutPercentSpace = calloutPercentUserDefinedYOffset >= 0 ?
@@ -778,7 +803,7 @@ module powerbi.extensibility.visual {
 
             if (this.showCalloutValue) {
                 calloutTextHeight = callout.calloutValue.textHeight + this.gaugeStyle.callout.padding;
-                var yOffsetBaseEstimate = viewport.height - (Tachometer.DefaultMarginSettings.bottom + calloutTextHeight);
+                var yOffsetBaseEstimate = viewport.height - (this.marginSettings.bottom + calloutTextHeight);
                 //Adjust for user defined label displacement
                 calloutValueUserDefinedYOffset = Tachometer.translateUserYOffset(yOffsetBaseEstimate, callout.calloutValue, viewport.height, this.gaugeStyle.callout.padding);
                 calloutValueSpace = calloutValueUserDefinedYOffset >= 0 ?
@@ -790,6 +815,7 @@ module powerbi.extensibility.visual {
             if (availableHeight < 0) {
                 this.showAxisLabels = this.showTargetLabel = this.showCalloutValue = this.showCalloutPercent = false;
                 calloutValueSpace = calloutPercentSpace = 0;
+                margins = this.defineMargins(axisData);
                 availableHeight = Math.max(viewport.height - margins.mainMargin.top - margins.mainMargin.bottom, 0);
             }
 
@@ -853,6 +879,14 @@ module powerbi.extensibility.visual {
                     }
                 }
                 translation = this.calculateGaugeTranslation(axisData, axisData.startAngle, axisData.endAngle, availableHeight, availableWidth);
+            }
+
+            if (!axisData.show) { //special condition. Hide all visal components
+                translation.radius = 0;
+                this.showCalloutValue = false;
+                this.showCalloutPercent = false;
+                this.showAxisLabels = false;
+                this.showTargetLabel = false;
             }
 
             //the translation above should be moved down by this much to accomodate for target and axisLabels and margin
@@ -922,7 +956,7 @@ module powerbi.extensibility.visual {
 
         private setCalloutPercentValue(calloutPercent: TachometerDataLabelsData, axisData: TachometerAxisData): TachometerDataLabelsData {
             if (calloutPercent && calloutPercent.show) {
-                var value = calloutPercent.invert ? 100 - axisData.percent : axisData.percent;
+                var value = this.getCalloutPercentDisplayValue(calloutPercent, axisData);
                 var formatter = this.getFormatter(calloutPercent.displayUnits, calloutPercent.precision, value, true);
                 var formattedValue = formatter.format(value);
                 formattedValue = (formattedValue === undefined) ? ' [-%]' : ' [' + formattedValue + '%]';
@@ -931,6 +965,24 @@ module powerbi.extensibility.visual {
             }
             return calloutPercent;
         }
+
+        private getCalloutPercentDisplayValue(calloutPercent: TachometerDataLabelsData, axisData: TachometerAxisData): number 
+        {
+            var baseValue: number = calloutPercent.invert ? axisData.endValue : axisData.startValue;
+
+            var hundredPercentValue: number;
+            switch (calloutPercent.percentType)
+            {
+                case percentType.endValue: hundredPercentValue = calloutPercent.invert ? axisData.startValue : axisData.endValue; break;
+                case percentType.target: hundredPercentValue = axisData.target.value; break;
+                case percentType.range2Start: hundredPercentValue = axisData.range2.startValue; break;
+                case percentType.range3Start: hundredPercentValue = axisData.range3.startValue; break;
+            }
+
+            var percent: number = axisData.valueRange !== 0 ? Math.abs((axisData.value - baseValue) * 100 / (hundredPercentValue - baseValue)) : 0;
+            return percent;
+        }
+
          private completeTargetTextProperties(axis: TachometerAxisData) {
             //this method has to be called before we calculate the gauge radius but
             //after reading target Properties as well as gauge axis label properties becaust of the dependancy below
@@ -976,13 +1028,14 @@ module powerbi.extensibility.visual {
             var targetMargin: IMargin = this.addPadding(this.getTargetMargin(axisData), this.gaugeStyle.target.padding);
             var labelMargin: IMargin = this.addPadding(this.getLabelMargins(axisData), this.gaugeStyle.labels.padding);
 
-            var MainMargin = {
-                top: (targetMargin.top + labelMargin.top) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.top ,
-                bottom: (targetMargin.bottom + labelMargin.bottom) > 0 ? Tachometer.ReducedVerticaltMargin : Tachometer.DefaultMarginSettings.bottom,
-                left: (targetMargin.left + labelMargin.left) > 0 ? Tachometer.ReducedHorizontalMargin : Tachometer.DefaultMarginSettings.left,
-                right: (targetMargin.right + labelMargin.right) > 0 ? Tachometer.ReducedHorizontalMargin: Tachometer.DefaultMarginSettings.right,
+/*            var MainMargin = {
+                top: (targetMargin.top + labelMargin.top) > 0 ?  this.marginSettings.top : Tachometer.ReducedVerticaltMargin ,
+                bottom: (targetMargin.bottom + labelMargin.bottom) > 0 ? this.marginSettings.bottom : Tachometer.ReducedVerticaltMargin ,
+                left: (targetMargin.left + labelMargin.left) > 0 ? this.marginSettings.left : Tachometer.ReducedHorizontalMargin ,
+                right: (targetMargin.right + labelMargin.right) > 0 ? this.marginSettings.right : Tachometer.ReducedHorizontalMargin ,
             };
-
+*/
+            var MainMargin = this.marginSettings;
             return {
                 mainMargin: MainMargin,
                 labelMargin: labelMargin,
@@ -2195,6 +2248,7 @@ module powerbi.extensibility.visual {
                 for (var i = 0; i < values.length; i++) {
                     var col = values[i].source;
                     var value: number = <number>values[i].values[0];
+                    value = value === null ? undefined: value;
                     if (col && col.roles) {
                         if (col.roles[Tachometer.RoleNames.y]) {
                             if (value === undefined || isNaN(Number(value)))
@@ -2237,6 +2291,12 @@ module powerbi.extensibility.visual {
                             else {
                                 axisData.range3.startValue = value;
                                 axisData.tooltipInfo.push({ displayName: Tachometer.RoleNames.range3StartValue, value: value.toString() });
+                            }
+                        } if (col.roles[Tachometer.RoleNames.displayFilter]) {
+                            if (value === undefined || isNaN(Number(value)) || value == 0)
+                                axisData.show = false;
+                            else {
+                                axisData.show = true;
                             }
                         }
                     }
@@ -2316,6 +2376,9 @@ module powerbi.extensibility.visual {
                 if (labelsObj.invert != null && labelsObj.invert !== undefined) {
                     dataLabelsSettings.invert = <boolean>labelsObj.invert;
                 }
+                if (labelsObj.percentType != null && labelsObj.percentType !== undefined) {
+                    dataLabelsSettings.percentType = labelsObj.percentType;
+                }
             }
             else {
                 dataLabelsSettings.count = Tachometer.DefaultLabelCount;
@@ -2345,7 +2408,10 @@ module powerbi.extensibility.visual {
         private getFormatter(displayUnits: number, precision: number, value?: number, ignoreDataType: boolean = false): IValueFormatter {
             displayUnits = displayUnits == null ? 0 : displayUnits;
             var realValue = displayUnits === 0 ? value : null;
-            var formatString: string = valueFormatter.getFormatString((ignoreDataType ? null : this.metadataColumn), Tachometer.formatStringProp);
+            var formatString: string = ignoreDataType ?
+                valueFormatter.getFormatString(null, Tachometer.formatStringProp) :
+                valueFormatter.getFormatStringByColumn(this.metadataColumn);
+
             precision = dataLabelUtils.getLabelPrecision(precision, formatString);
             var valueFormatterOptions: ValueFormatterOptions = this.getOptionsForLabelFormatter(displayUnits, formatString, realValue, precision);
             return valueFormatter.create(valueFormatterOptions);
@@ -2371,7 +2437,8 @@ module powerbi.extensibility.visual {
                 fontSize: Tachometer.DefaultCalloutPercentFontSizeInPt,
                 offset: { x: undefined, y: undefined },
                 textHeight: PixelConverter.fromPointToPixel(Tachometer.DefaultCalloutFontSizeInPt),
-                invert: false
+                invert: false,
+                percentType: percentType.endValue
             };
             return dataLabelSettings;
         }
@@ -2783,6 +2850,33 @@ module powerbi.extensibility.visual {
             return axisData;
         }
 
+        private enumerateMarginProperties(enumeration: VisualObjectInstance[]): void {
+            var instance: VisualObjectInstance = {
+                objectName: "margins",
+                displayName: "Margins",
+                properties: {},
+                selector: null,
+            };
+
+            var objects: DataViewObjects = this.dataView && this.dataView.metadata ? this.dataView.metadata.objects : null;
+            var marginObj: TachometerMarginObject = objects ? <TachometerMarginObject>objects[instance.objectName] : null;
+            var hasMarginObject: boolean = (marginObj != null);
+
+            var marginSettings : IMargin = this.getTachometerMarginSettings();
+
+            instance.properties['top'] = (hasMarginObject && marginObj.top !== undefined) ? marginObj.top : marginSettings.top;
+            instance.properties['bottom'] = (hasMarginObject && marginObj.bottom !== undefined) ? marginObj.bottom : marginSettings.bottom;
+            instance.properties['left'] = (hasMarginObject && marginObj.left !== undefined) ? marginObj.left : marginSettings.left;
+            instance.properties['right'] = (hasMarginObject && marginObj.right !== undefined) ? marginObj.right : marginSettings.right;
+
+            enumeration.push(instance);
+        }
+
+        private getTachometerMarginSettings()
+        {
+            return this.marginSettings;
+        }
+
         private static getTachometerObjectsProperties(dataView: DataView, axisData: TachometerAxisData): TachometerAxisObject {
             var properties: any = {};
             var objects: TachometerAxisObjects = dataView && dataView.metadata ? <TachometerAxisObjects>dataView.metadata.objects : null;
@@ -2847,6 +2941,35 @@ module powerbi.extensibility.visual {
             rangeSettings.innerRadiusRatio = 1 - thickness / 100;
 
             return rangeSettings;
+        }
+
+        private transformMarginSettings(dataView: DataView ): IMargin {
+            var objects: DataViewObjects = dataView && dataView.metadata ? dataView.metadata.objects : null;
+            var marginObj: TachometerMarginObject = objects ? <TachometerMarginObject>objects["margins"] : null;
+            var hasMarginObject: boolean = (marginObj != null);
+
+            var marginSettings : IMargin = this.getTachometerMarginSettings();
+
+            if (hasMarginObject) {
+                if (marginObj.top !== undefined) {
+                    marginObj.top = Tachometer.clamp(marginObj.top, 0, Tachometer.MaxMarginSize);
+                    marginSettings.top = marginObj.top;
+                }
+                if (marginObj.bottom !== undefined) {
+                    marginObj.bottom = Tachometer.clamp(marginObj.bottom, 0, Tachometer.MaxMarginSize);
+                    marginSettings.bottom = marginObj.bottom;
+                }
+                if (marginObj.left !== undefined) {
+                    marginObj.left = Tachometer.clamp(marginObj.left, 0, Tachometer.MaxMarginSize);
+                    marginSettings.left = marginObj.left;
+                }
+                if (marginObj.right !== undefined) {
+                    marginObj.right = Tachometer.clamp(marginObj.right, 0, Tachometer.MaxMarginSize);
+                    marginSettings.right = marginObj.right;
+                }
+            }
+
+            return marginSettings;
         }
 
         private static getDefaultTachometerLabelSettings(): TachometerDataLabelsData {
@@ -3071,16 +3194,20 @@ module powerbi.extensibility.visual {
                             && ((axis.directionClockwise && targetValue <= axis.startValue)
                                 || (!axis.directionClockwise && targetValue >= axis.startValue )) )
                     ) {
-                        //target Value is between startValue and the first Axis Label
-                        targetRect = this.placeTargetBeforeFirstLabel(axisLabels[startIndex].rect, targetRect, targetDetails);
+                        if (targetValue != axisLabels[startIndex].value) {//avoid repeating
+                            //target Value is between startValue and the first Axis Label
+                            targetRect = this.placeTargetBeforeFirstLabel(axisLabels[startIndex].rect, targetRect, targetDetails);
+                        }
                     }
                     else if (this.isBetween(targetValue, axisLabels[endIndex].value, axis.endValue)
                              || (!this.isBetween(targetValue, axis.startValue, axis.endValue) 
                                    && ((axis.directionClockwise && targetValue >= axis.endValue)
                                     || (!axis.directionClockwise && targetValue <= axis.endValue )) )
                     ) {
-                        //target Value is between last Axis Label and endValue
-                        targetRect = this.placeTargetAfterLastLabel(axisLabels[endIndex].rect, targetRect, targetDetails);
+                        if (targetValue != axisLabels[endIndex].value) { //avoid repeating
+                            //target Value is between last Axis Label and endValue
+                            targetRect = this.placeTargetAfterLastLabel(axisLabels[endIndex].rect, targetRect, targetDetails);
+                        }
                     }
                 }
             }
@@ -3610,6 +3737,9 @@ module powerbi.extensibility.visual {
                         : Tachometer.getDefaultTachometerCalloutPercentSettings();
                     this.enumerateCalloutPercentProperties(enumeration, 'calloutPercent', 'Callout Percent', labelSettings);
                     break;
+                case 'margins':
+                    this.enumerateMarginProperties(enumeration);
+                    break;                    
             }
             return enumeration;
         }
@@ -3776,7 +3906,6 @@ module powerbi.extensibility.visual {
             var objects: DataViewObjects = this.dataView && this.dataView.metadata ? this.dataView.metadata.objects : null;
             var labelsObj: TachometerLabelObject = objects ? <TachometerLabelObject>objects[objectName] : null;
             var haslabelObject: boolean = (labelsObj != null);
-
             instance.properties['xOffset'] =
                 (haslabelObject && labelsObj.xOffset !== undefined) && (labelSettings.offset && labelSettings.offset.x) ?
                     labelSettings.offset.x : undefined;
@@ -3784,7 +3913,8 @@ module powerbi.extensibility.visual {
                 (haslabelObject && labelsObj.yOffset !== undefined) && (labelSettings.offset && labelSettings.offset.y && labelSettings.offset.y !== undefined) ?
                     -labelSettings.offset.y //switching direction for intutive user experience of +ve up
                     : undefined;
-            instance.properties['invert'] = haslabelObject ? labelsObj.invert : labelSettings.invert;
+            instance.properties['percentType'] = haslabelObject && labelsObj.percentType !== undefined ? labelsObj.percentType : labelSettings.percentType;
+            instance.properties['invert'] = haslabelObject  && labelsObj.invert !== undefined ? labelsObj.invert : labelSettings.invert;
 
             enumeration.push(instance);
         }

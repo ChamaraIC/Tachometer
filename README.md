@@ -37,6 +37,7 @@ Following diagram show Tachometer Data Roles.
 |Target Value|The Target value that will be displayed by the target line.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.<br />Note.Tachometer visual will attempt to position the label indicating target value such that it does not overlap any Axis Labels or Callout values. However, target value label may not be rendered in case Tachometer is unable to relocate target label in the visinity of target line.|
 |Range 2 Start Value|This is the starting value for “Range 2”. This is also the End value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge.In addition, this value should be between “Start Value” and “Range 3 Start Value” when “Range 3 Start Value” is available.|
 |Range 3 Start Value|This is the starting value for “Range 3”. This is also the End value for Range 2 when “Range 2 Start Value” is defined. When “Range 2 Start Value” is not provided, this will also be the End Value for Range 1.|Value should be between “Start Value” and “End Value” to be to be displayed on the gauge. In addition, this value should be between “Range 2 Start Value” and “End Value” when “Range 2 Start Value” is available.|
+|Display Filter|This field can be used to conditionally show/hide all Tachometer components except the title. If the value of the field evaluates to zero or blank, then hide components else show. No impact if there is no data field provided.|None.|
 
 ##Tachometer Capability Options
 

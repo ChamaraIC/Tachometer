@@ -30,6 +30,11 @@
                     "kind": "Measure",
                     "displayName": "Range3 Start Value",
                     "description": "Start value of Range3"
+                }, {
+                    "name": "DisplayFilter",
+                    "kind": "Measure",
+                    "displayName": "Display Filter",
+                    "description": "Hide gauge if value evaluates to zero or blank"
                 }
             ],
             "objects": {
@@ -308,10 +313,64 @@
                             "placeHolderText": "0%",
                             "type": { "numeric": true }
                         },
+                        "percentType": {
+                            "displayName": "100% ",
+                            "description": "The base of 100%",
+                            "placeHolderText": "EndValue",
+                            "type": {
+                                "enumeration": [
+                                {
+                                    "value": "EndValue",
+                                    "displayName": "End Value"
+                                },
+                                {
+                                    "value": "Target",
+                                    "displayName": "Target"
+                                },
+                                {
+                                    "value": "Range2Start",
+                                    "displayName": "Range 2 Start"
+                                },
+                                {
+                                    "value": "Range3Start",
+                                    "displayName": "Range 3 Start"
+                                }
+                                ]
+                            }
+                        },
                         "invert": {
                             "displayName": "Invert",
                             "description": "Invert the percentage value",
                             "type": { "bool": true }
+                        }
+                    }
+                },
+                "margins": {
+                    "displayName": "Margins",
+                    "properties": {
+                        "top": {
+                            "displayName": "Top",
+                            "description": "Top Margin",
+                            "placeHolderText": "0",
+                            "type": { "numeric": true }
+                        },
+                        "bottom": {
+                            "displayName": "Bottom",
+                            "description": "Bottom Margin",
+                            "placeHolderText": "0",
+                            "type": { "numeric": true }
+                        },
+                        "left": {
+                            "displayName": "Left",
+                            "description": "Left Margin",
+                            "placeHolderText": "0",
+                            "type": { "numeric": true }
+                        },
+                        "right": {
+                            "displayName": "Right",
+                            "description": "Right Margin",
+                            "placeHolderText": "0",
+                            "type": { "numeric": true }
                         }
                     }
                 }
@@ -324,7 +383,8 @@
                         "EndValue": { "min": 0, "max": 1 },
                         "TargetValue": { "min": 0, "max": 1 },
                         "Range2StartValue": { "min": 0, "max": 1 },
-                        "Range3StartValue": { "min": 0, "max": 1 }
+                        "Range3StartValue": { "min": 0, "max": 1 },
+                        "DisplayFilter": { "min": 0, "max": 1 }
                     }
                 ],
                 "categorical": {
@@ -335,7 +395,8 @@
                             { "bind": { "to": "EndValue" } },
                             { "bind": { "to": "TargetValue" } },
                             { "bind": { "to": "Range2StartValue" } },
-                            { "bind": { "to": "Range3StartValue" } }
+                            { "bind": { "to": "Range3StartValue" } },
+                            { "bind": { "to": "DisplayFilter" } }
                         ]
                     }
                 }

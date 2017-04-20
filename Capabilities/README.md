@@ -8,15 +8,16 @@ Following diagram show Tachometer Capability Options.
 
 Read more about each of the capability options,
 
-1. [Gauge Axis](GaugeAxis.md)
-2. [Range 1](Range1.md)
-3. [Range 2](Range2.md)
-4. [Range 3](Range3.md)
-5. [Target](Target.md)
-6. [Indicator](Indicator.md)
-7. [Axis Labels](AxisLabels.md)
-8. [Callout Value](CalloutValue.md)
-9. [Callout Percent](CalloutPercent.md)
+ 1. [Gauge Axis](GaugeAxis.md)
+ 2. [Range 1](Range1.md)
+ 3. [Range 2](Range2.md)
+ 4. [Range 3](Range3.md)
+ 5. [Target](Target.md)
+ 6. [Indicator](Indicator.md)
+ 7. [Axis Labels](AxisLabels.md)
+ 8. [Callout Value](CalloutValue.md)
+ 9. [Callout Percent](CalloutPercent.md)
+10. [Margins](Margins.md)
 
 
 
