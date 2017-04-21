@@ -17,7 +17,7 @@ Read more about each of the capability options,
  7. [Axis Labels](AxisLabels.md)
  8. [Callout Value](CalloutValue.md)
  9. [Callout Percent](CalloutPercent.md)
-10. [Margins](Margins.md)
+10. [Margins](Margin.md)
 
 
 
