@@ -21,7 +21,7 @@
   "devDependencies": {
     "d3": "3.5.5",
     "jquery": "3.1.1",
-    "lodash": "4.16.2",
+    "lodash": "4.17.19",
     "powerbi-visuals-utils-chartutils": "^0.3.0",
     "powerbi-visuals-utils-formattingutils": "^0.2.2",
     "powerbi-visuals-utils-svgutils": "^0.2.1",
